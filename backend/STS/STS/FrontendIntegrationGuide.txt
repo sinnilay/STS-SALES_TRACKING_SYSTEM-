@@ -1,0 +1,133 @@
+STS (Sales Tracking System) - Backend API Integration Guide
+==========================================================
+
+Base URLs (Local Development):
+- HTTP: http://localhost:5066/api
+- HTTPS: https://localhost:7202/api
+
+Interactive API Docs:
+You can also view and test all APIs interactively by going to:
+http://localhost:5066/scalar/v1
+
+
+1. Authentication & JWT Handling
+----------------------------------------------------------
+Most endpoints (except Login) are protected and require the user to be an Admin.
+When a user logs in successfully, the API will return a JSON Web Token (JWT).
+You MUST include this token in the headers of all subsequent requests.
+
+Header Format:
+Authorization: Bearer <YOUR_JWT_TOKEN_HERE>
+
+
+2. API Endpoints Reference
+----------------------------------------------------------
+
+### A. Authentication
+
+1. Login
+- Endpoint: POST /Auth/login
+- Description: Authenticates the user and returns a JWT token.
+- Request Body (JSON):
+{
+  "email": "user@example.com",
+  "password": "yourpassword"
+}
+- Success Response (200 OK):
+{
+  "token": "eyJhbGciOiJIUzI1...",
+  "role": "Admin", 
+  "id": 1
+}
+- Error Responses:
+  - 401 Unauthorized: {"message": "Invalid email or password"}
+  - 401 Unauthorized: {"message": "Your account is disabled. Please contact the admin."}
+
+
+### B. Admin - Employee Management
+Note: ALL endpoints below require the JWT token in the Authorization header.
+
+1. Get All Employees
+- Endpoint: GET /Admin/employees
+- Description: Retrieves a list of all employees (Active and Inactive).
+- Response (200 OK):
+[
+  {
+    "id": 1,
+    "email": "admin@example.com",
+    "department": "IT",
+    "address": "123 Main St",
+    "role": "Admin",
+    "isActive": true,
+    "createdAt": "2026-07-11T07:25:51Z"
+  }
+]
+
+2. Add New Employee
+- Endpoint: POST /Admin/employees
+- Description: Creates a new employee (password will be automatically hashed on the backend).
+- Request Body (JSON):
+{
+  "email": "newuser@example.com",
+  "password": "securepassword",
+  "department": "Sales",
+  "address": "456 Market St",
+  "role": "Sales" // Can be "Admin" or "Sales"
+}
+- Success Response (200 OK):
+{
+  "message": "Employee created successfully.",
+  "id": 2
+}
+- Error Response (400 Bad Request): {"message": "Email already in use."}
+
+3. Toggle Employee Status (Enable/Disable)
+- Endpoint: PUT /Admin/employees/{id}/toggle-status
+- Description: Enables or disables an employee. If disabled, they cannot log in.
+- URL Parameter: `id` (The integer ID of the employee).
+- Success Response (200 OK):
+{
+  "message": "Employee status updated to Inactive.",
+  "isActive": false
+}
+- Error Response (400 Bad Request): {"message": "You cannot change your own status."}
+
+
+### C. Admin - Sales Tracking System (STS)
+Note: ALL endpoints below require the JWT token in the Authorization header.
+
+1. Get All Sales Data
+- Endpoint: GET /Admin/sales
+- Description: Retrieves a list of all submitted sales data, including the employee who submitted it.
+- Response (200 OK):
+[
+  {
+    "id": 1,
+    "title": "Q3 Software License Sale",
+    "amount": 1500.50,
+    "description": "Sold 5 licenses to Company X",
+    "createdAt": "2026-07-11T07:30:00Z",
+    "employee": {
+      "id": 2,
+      "email": "salesguy@example.com",
+      "department": "Sales"
+    }
+  }
+]
+
+2. Add Sales Data
+- Endpoint: POST /Admin/sales
+- Description: Records a new sale into the system.
+- Request Body (JSON):
+{
+  "title": "Hardware Sale",
+  "amount": 2500.00,
+  "description": "Sold 10 laptops",
+  "employeeId": 2 // The ID of the employee making the sale
+}
+- Success Response (200 OK):
+{
+  "message": "Sales data added successfully.",
+  "id": 1
+}
+- Error Response (400 Bad Request): {"message": "Invalid EmployeeId."}
