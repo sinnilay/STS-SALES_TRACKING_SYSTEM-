@@ -58,6 +58,10 @@ namespace STS.Data
                 .HasForeignKey(d => d.TenantCompanyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<DsrEntry>()
+                .Property(d => d.ConvertedPrice)
+                .HasColumnType("decimal(18,2)");
+
             modelBuilder.Entity<SiteImage>()
                 .HasOne(si => si.SalesData)
                 .WithMany()

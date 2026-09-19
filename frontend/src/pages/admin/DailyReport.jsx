@@ -117,6 +117,18 @@ const DailyReport = () => {
     setDetailsRecord(null);
   };
 
+  const refreshDetailsAfterStatusUpdate = async () => {
+    if (selectedEntry) {
+      try {
+        const record = await stsService.getSalesDataById(selectedEntry.salesDataId);
+        setDetailsRecord(record);
+      } catch (error) {
+        toast.error('Failed to refresh STS details');
+      }
+    }
+    fetchEntries(false);
+  };
+
   const fetchEntries = async (showSpinner = true) => {
     if (!selectedEmployee) return;
     const requestId = ++fetchIdRef.current;
@@ -435,6 +447,8 @@ const DailyReport = () => {
         salesRecord={detailsRecord}
         highlightTransition={selectedEntry}
         fetchHistory={stsService.getSalesHistory}
+        onUpdateStatus={stsService.updateSalesStatus}
+        onUpdated={refreshDetailsAfterStatusUpdate}
       />
     </div>
   );

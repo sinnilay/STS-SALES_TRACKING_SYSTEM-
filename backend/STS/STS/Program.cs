@@ -223,6 +223,42 @@ using (var scope = app.Services.CreateScope())
                     [ProcessedAt] datetime2 NULL
                 );
             END
+
+            IF NOT EXISTS (
+                SELECT * FROM sys.columns 
+                WHERE object_id = OBJECT_ID(N'[DsrEntries]') 
+                AND name = 'ConvertedFor'
+            )
+            BEGIN
+                ALTER TABLE [DsrEntries] ADD [ConvertedFor] nvarchar(max) NULL;
+            END
+
+            IF NOT EXISTS (
+                SELECT * FROM sys.columns 
+                WHERE object_id = OBJECT_ID(N'[DsrEntries]') 
+                AND name = 'ConvertedPrice'
+            )
+            BEGIN
+                ALTER TABLE [DsrEntries] ADD [ConvertedPrice] decimal(18,2) NULL;
+            END
+
+            IF NOT EXISTS (
+                SELECT * FROM sys.columns 
+                WHERE object_id = OBJECT_ID(N'[DsrEntries]') 
+                AND name = 'OtherStatusText'
+            )
+            BEGIN
+                ALTER TABLE [DsrEntries] ADD [OtherStatusText] nvarchar(max) NULL;
+            END
+
+            IF NOT EXISTS (
+                SELECT * FROM sys.columns 
+                WHERE object_id = OBJECT_ID(N'[DsrEntries]') 
+                AND name = 'UpdatedAsAdmin'
+            )
+            BEGIN
+                ALTER TABLE [DsrEntries] ADD [UpdatedAsAdmin] bit NOT NULL DEFAULT 0;
+            END
         ");
     }
     catch (Exception ex)

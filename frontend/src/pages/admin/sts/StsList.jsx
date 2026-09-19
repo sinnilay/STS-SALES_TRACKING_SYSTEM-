@@ -379,6 +379,7 @@ const StsList = () => {
         {selectedRecordForStatus && (
           <StatusPipelineModal
             salesRecord={selectedRecordForStatus}
+            isAdmin
             onClose={() => setSelectedRecordForStatus(null)}
             onSuccess={() => {
               setSelectedRecordForStatus(null);

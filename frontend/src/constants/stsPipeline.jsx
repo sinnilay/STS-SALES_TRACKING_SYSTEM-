@@ -23,7 +23,16 @@ export const STS_STATUS_OPTIONS = [
   { id: 'NI_FC', label: 'Not Interested in First Meeting', group: 'negative' },
   { id: 'NI_FU', label: 'Not Interested in Follow Up', group: 'negative' },
   { id: 'CNVT', label: 'Converted', group: 'success' },
+  { id: 'A_CNVT', label: 'Already Converted', group: 'success' },
+  { id: 'CNVT_PH', label: 'Converted Over Phone', group: 'success' },
+  { id: 'CNVT_FC', label: 'Converted in First Call', group: 'success' },
+  { id: 'CNVT_FU', label: 'Converted in Follow-up', group: 'success' },
+  { id: 'OTHER', label: 'Other', group: 'neutral' },
 ];
+
+// Status codes that represent a conversion — picking one of these prompts for
+// the extra "Converted For" / "Price" details on the update form.
+export const CONVERTED_STATUS_IDS = ['CNVT', 'A_CNVT', 'CNVT_PH', 'CNVT_FC', 'CNVT_FU'];
 
 // Records created before this change (or never updated yet) can still carry one
 // of these older values as their Status — map them so they render sensibly

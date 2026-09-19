@@ -9,9 +9,19 @@ namespace STS.Services
         public static readonly string[] ValidStatuses =
         {
             "N_O", "W_N", "CPNA", "C_B", "C_C", "APPMT", "DMUPIFC", "PGIFC", "PGIFU",
-            "DMUPIFU1", "DMUPIFU2", "DMUPIFU3", "SERV", "JUNK", "NI", "NI_PH", "NI_FC", "NI_FU", "CNVT"
+            "DMUPIFU1", "DMUPIFU2", "DMUPIFU3", "SERV", "JUNK", "NI", "NI_PH", "NI_FC", "NI_FU",
+            "CNVT", "A_CNVT", "CNVT_PH", "CNVT_FC", "CNVT_FU", "OTHER"
+        };
+
+        // Statuses that represent a conversion — selecting one requires the extra
+        // "Converted For" / "Price" details captured on the update form.
+        public static readonly string[] ConvertedStatuses =
+        {
+            "CNVT", "A_CNVT", "CNVT_PH", "CNVT_FC", "CNVT_FU"
         };
 
         public static bool IsValidStatus(string status) => ValidStatuses.Contains(status);
+
+        public static bool IsConvertedStatus(string status) => ConvertedStatuses.Contains(status);
     }
 }

@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { X, Building2, MapPin, Phone, Mail, Globe, User, Clock, CheckCircle2, UserCircle2, ArrowRight, MessageSquare, Loader2, CalendarClock, Flag, Mail as MailIcon, FileText, Printer, Tag, UserCog } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Building2, MapPin, Phone, Mail, Globe, User, Clock, CheckCircle2, UserCircle2, ArrowRight, MessageSquare, Loader2, CalendarClock, Flag, Mail as MailIcon, FileText, Printer, Tag, UserCog, PencilLine } from 'lucide-react';
 import { getStatusMeta } from '../../../constants/stsPipeline';
+import Modal from '../../../components/Modal';
+import StatusPipelineModal from './StatusPipelineModal';
 
-const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, fetchHistory }) => {
+// `onUpdateStatus` is only passed in by admin-facing screens (e.g. the company
+// admin's Daily Report drawer) — that's what gates the "Update Status" button,
+// since employee-facing usages of this drawer already have their own update entry point.
+const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, fetchHistory, onUpdateStatus, onUpdated }) => {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [historyReloadKey, setHistoryReloadKey] = useState(0);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   useEffect(() => {
     if (!salesRecord?.id || !fetchHistory) {
@@ -35,7 +42,12 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
 
   const currentStatus = salesRecord ? getStatusMeta(salesRecord.status) : null;
 
-  return (
+  // Rendered via portal, straight onto <body> — AdminLayout's top navbar is a
+  // z-indexed flex item of its own flex container, which (per the flex-item
+  // z-index rule) outranks any fixed-position content nested under it
+  // regardless of that content's own z-index. Portaling out from under it
+  // sidesteps that entirely, matching how `Modal` already does this.
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -44,8 +56,12 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
       />
 
       {/* Drawer */}
+      {/* Header is a fixed-height flex item and the body scrolls on its own —
+          `position: sticky` here previously sat inside an ancestor that also
+          carries the slide-in `transform`, which is a fragile combination and
+          could leave the header's top row scrolled out of view. */}
       <div
-        className={`fixed inset-y-0 right-0 w-full md:w-[600px] bg-white dark:bg-slate-900 shadow-2xl z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? 'translate-x-0' : 'translate-x-full'} overflow-y-auto border-l border-slate-200 dark:border-slate-800`}
+        className={`fixed inset-y-0 right-0 w-full md:w-[600px] bg-white dark:bg-slate-900 shadow-2xl z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-200 dark:border-slate-800 flex flex-col`}
       >
         {!salesRecord ? (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
@@ -55,7 +71,7 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
         ) : (
         <>
         {/* Header */}
-        <div className="sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-10 px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+        <div className="shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
@@ -73,14 +89,28 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
               Created {new Date(salesRecord.createdAt).toLocaleDateString()}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 -mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {onUpdateStatus && (
+              <button
+                onClick={() => setShowUpdateModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                title="Update Status"
+              >
+                <PencilLine className="w-3.5 h-3.5" />
+                Update Status
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
+        {/* Scrollable body — separate from the fixed-height header above */}
+        <div className="flex-1 overflow-y-auto">
         <div className="p-6 space-y-8">
 
           {/* Current Status */}
@@ -144,7 +174,7 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                       >
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${entryStatus.badge}`} title={entryStatus.label}>
-                            {entry.newStatus}
+                            {entry.newStatus === 'OTHER' ? (entry.otherStatusText || 'Other') : entry.newStatus}
                           </span>
                           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                             {new Date(entry.createdAt).toLocaleString()}
@@ -158,6 +188,7 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                           <span>
                             By <span className="font-semibold text-slate-700 dark:text-slate-300">{entry.employee?.fullName || entry.employee?.email || 'Unknown'}</span>
+                            {entry.updatedAsAdmin && <span className="ml-1 italic">(as Admin)</span>}
                           </span>
                           {entry.priority && (
                             <span className="flex items-center gap-1"><Flag className="w-3 h-3" /> {entry.priority}</span>
@@ -172,6 +203,13 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                             <span className="flex items-center gap-1"><MailIcon className="w-3 h-3" /> {entry.ccTo}</span>
                           )}
                         </div>
+
+                        {(entry.convertedFor || entry.convertedPrice != null) && (
+                          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                            {entry.convertedFor && <span>Converted for: {entry.convertedFor}</span>}
+                            {entry.convertedPrice != null && <span>Price: {entry.convertedPrice}</span>}
+                          </div>
+                        )}
 
                         {entry.comment && (
                           <div className="mt-2 text-sm text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/40 rounded-lg px-3 py-2 border border-slate-100 dark:border-slate-700">
@@ -290,10 +328,35 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
           </section>
 
         </div>
+        </div>
         </>
         )}
       </div>
-    </>
+
+      {onUpdateStatus && (
+        <Modal
+          isOpen={showUpdateModal}
+          onClose={() => setShowUpdateModal(false)}
+          title="Log STS Update"
+          maxWidthClass="max-w-xl"
+        >
+          {salesRecord && (
+            <StatusPipelineModal
+              salesRecord={salesRecord}
+              isAdmin
+              onClose={() => setShowUpdateModal(false)}
+              onUpdateStatus={onUpdateStatus}
+              onSuccess={() => {
+                setShowUpdateModal(false);
+                setHistoryReloadKey((k) => k + 1);
+                onUpdated?.();
+              }}
+            />
+          )}
+        </Modal>
+      )}
+    </>,
+    document.body
   );
 };
 

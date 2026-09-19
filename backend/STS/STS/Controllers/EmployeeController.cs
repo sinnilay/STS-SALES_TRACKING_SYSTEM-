@@ -643,6 +643,10 @@ namespace STS.Controllers
                     d.NextCallMeetingDate,
                     d.CcTo,
                     d.Subject,
+                    d.ConvertedFor,
+                    d.ConvertedPrice,
+                    d.OtherStatusText,
+                    d.UpdatedAsAdmin,
                     d.CreatedAt,
                     Employee = d.Employee != null ? new { d.Employee.Id, d.Employee.FullName, d.Employee.Email } : null
                 })
@@ -680,6 +684,15 @@ namespace STS.Controllers
             {
                 return BadRequest(new { message = "A comment is required to update the status." });
             }
+            if (StsPipeline.IsConvertedStatus(request.Status))
+            {
+                if (string.IsNullOrWhiteSpace(request.ConvertedFor)) return BadRequest(new { message = "Converted For is required for a converted status." });
+                if (request.ConvertedPrice == null) return BadRequest(new { message = "Price is required for a converted status." });
+            }
+            if (request.Status == "OTHER" && string.IsNullOrWhiteSpace(request.OtherStatusText))
+            {
+                return BadRequest(new { message = "Please describe the custom status." });
+            }
 
             var previousStatus = salesData.Status;
             salesData.Status = request.Status;
@@ -702,6 +715,9 @@ namespace STS.Controllers
                 NextCallMeetingDate = request.NextCallMeetingDate,
                 CcTo = request.CcTo,
                 Subject = request.Subject,
+                ConvertedFor = request.ConvertedFor,
+                ConvertedPrice = request.ConvertedPrice,
+                OtherStatusText = request.OtherStatusText,
                 ReportDate = DateTime.UtcNow.Date,
                 CreatedAt = DateTime.UtcNow
             });

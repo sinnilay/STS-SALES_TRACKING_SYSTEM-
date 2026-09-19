@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { stsService } from '../../../services/stsService';
+import { employeeService } from '../../../services/employeeService';
 import Button from '../../../components/Button';
-import { STS_STATUS_OPTIONS, PRIORITY_OPTIONS } from '../../../constants/stsPipeline';
+import { STS_STATUS_OPTIONS, PRIORITY_OPTIONS, isConverted } from '../../../constants/stsPipeline';
 
 const FIELD_LABEL = "block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1.5";
 const FIELD_INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-sm transition-colors";
+
+const ADMIN_ACTOR = 'admin';
 
 const initialForm = {
   priority: '',
@@ -15,18 +18,35 @@ const initialForm = {
   ccTo: '',
   subject: '',
   comment: '',
+  otherStatusText: '',
+  convertedFor: '',
+  convertedPrice: '',
+  actingAs: ADMIN_ACTOR,
 };
 
 // Logs a new STS update for a record — Priority, Call/Meeting Date, Status,
 // Next Call/Meeting Date, CC To, Subject and Comments — mirroring the STS
 // report's update form. Every submission is saved as its own history entry;
 // there's no forward-only pipeline, any status code can be picked any time.
-const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus }) => {
+// `isAdmin` gates the extra "log this as / on behalf of an employee" control,
+// which only makes sense from admin-facing screens.
+const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, isAdmin }) => {
   const [form, setForm] = useState(initialForm);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [employees, setEmployees] = useState([]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    employeeService.getAllEmployees()
+      .then((data) => setEmployees(data || []))
+      .catch(() => setEmployees([]));
+  }, [isAdmin]);
 
   const setField = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const statusIsConverted = isConverted(form.status);
+  const statusIsOther = form.status === 'OTHER';
 
   const validate = () => {
     const next = {};
@@ -35,6 +55,11 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus }
     if (!form.status) next.status = 'Required';
     if (!form.subject.trim()) next.subject = 'Required';
     if (!form.comment.trim()) next.comment = 'Required';
+    if (statusIsOther && !form.otherStatusText.trim()) next.otherStatusText = 'Required';
+    if (statusIsConverted) {
+      if (!form.convertedFor.trim()) next.convertedFor = 'Required';
+      if (form.convertedPrice === '' || Number(form.convertedPrice) < 0) next.convertedPrice = 'Required';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -51,7 +76,15 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus }
       ccTo: form.ccTo.trim() || null,
       subject: form.subject.trim(),
       comment: form.comment.trim(),
+      otherStatusText: statusIsOther ? form.otherStatusText.trim() : null,
+      convertedFor: statusIsConverted ? form.convertedFor.trim() : null,
+      convertedPrice: statusIsConverted ? Number(form.convertedPrice) : null,
     };
+
+    if (isAdmin) {
+      payload.updatedAsAdmin = form.actingAs === ADMIN_ACTOR;
+      payload.employeeId = form.actingAs === ADMIN_ACTOR ? null : Number(form.actingAs);
+    }
 
     setIsSaving(true);
     try {
@@ -97,11 +130,66 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus }
           <select value={form.status} onChange={setField('status')} className={FIELD_INPUT}>
             <option value="">Select Status</option>
             {STS_STATUS_OPTIONS.map((s) => (
-              <option key={s.id} value={s.id}>{s.id} ({s.label})</option>
+              <option key={s.id} value={s.id}>{s.id === 'OTHER' ? s.label : `${s.id} (${s.label})`}</option>
             ))}
           </select>
           {errors.status && <p className="mt-1 text-xs text-red-600">{errors.status}</p>}
         </div>
+
+        {statusIsOther && (
+          <div className="sm:col-span-2">
+            <label className={FIELD_LABEL}>Custom Status <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              placeholder="Describe the status"
+              value={form.otherStatusText}
+              onChange={setField('otherStatusText')}
+              className={FIELD_INPUT}
+            />
+            {errors.otherStatusText && <p className="mt-1 text-xs text-red-600">{errors.otherStatusText}</p>}
+          </div>
+        )}
+
+        {statusIsConverted && (
+          <>
+            <div>
+              <label className={FIELD_LABEL}>Converted For <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                placeholder="What was it converted for?"
+                value={form.convertedFor}
+                onChange={setField('convertedFor')}
+                className={FIELD_INPUT}
+              />
+              {errors.convertedFor && <p className="mt-1 text-xs text-red-600">{errors.convertedFor}</p>}
+            </div>
+            <div>
+              <label className={FIELD_LABEL}>Price <span className="text-red-500">*</span></label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={form.convertedPrice}
+                onChange={setField('convertedPrice')}
+                className={FIELD_INPUT}
+              />
+              {errors.convertedPrice && <p className="mt-1 text-xs text-red-600">{errors.convertedPrice}</p>}
+            </div>
+          </>
+        )}
+
+        {isAdmin && (
+          <div className="sm:col-span-2">
+            <label className={FIELD_LABEL}>Log This Update As</label>
+            <select value={form.actingAs} onChange={setField('actingAs')} className={FIELD_INPUT}>
+              <option value={ADMIN_ACTOR}>Myself (Admin)</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.fullName}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className={FIELD_LABEL}>Next Call / Meeting Date</label>

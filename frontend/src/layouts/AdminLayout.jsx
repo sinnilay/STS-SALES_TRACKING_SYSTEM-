@@ -39,10 +39,10 @@ const AdminLayout = () => {
 
   useEffect(() => {
     // Auto-expand menus based on current path
-    if (location.pathname.includes('/admin/employees')) {
+    if (location.pathname.includes('/admin/employees') && !location.pathname.includes('/admin/employees/daily-report')) {
       setExpandedMenus(prev => ({ ...prev, 'Employees': true }));
     }
-    if (location.pathname.includes('/admin/sts')) {
+    if (location.pathname.includes('/admin/sts') || location.pathname.includes('/admin/employees/daily-report')) {
       setExpandedMenus(prev => ({ ...prev, 'STS': true }));
     }
   }, [location.pathname]);
@@ -72,21 +72,21 @@ const AdminLayout = () => {
       children: [
         { name: 'New Employee', path: '/admin/employees/add' },
         { name: 'Employee List', path: '/admin/employees' },
-        { name: 'Daily Report', path: '/admin/employees/daily-report' },
         { name: 'Meetings', path: '/admin/employees/meetings' },
       ]
     },
   ];
 
   if (isStsEnabled) {
-    navItems.push({ 
-      name: 'STS', 
+    navItems.push({
+      name: 'STS',
       icon: BarChart3,
       children: [
         { name: 'Add STS', path: '/admin/sts/add' },
         { name: 'STS List', path: '/admin/sts' },
         { name: 'Employee STS Request', path: '/admin/sts/requests' },
         { name: 'Site Visit Gallery', path: '/admin/sts/site-images' },
+        { name: 'Daily Sales Report', path: '/admin/employees/daily-report' },
       ]
     });
   }

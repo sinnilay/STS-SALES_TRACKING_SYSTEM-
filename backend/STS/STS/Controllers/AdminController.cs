@@ -591,6 +591,10 @@ namespace STS.Controllers
                     d.NextCallMeetingDate,
                     d.CcTo,
                     d.Subject,
+                    d.ConvertedFor,
+                    d.ConvertedPrice,
+                    d.OtherStatusText,
+                    d.UpdatedAsAdmin,
                     d.CreatedAt,
                     Employee = d.Employee != null ? new { d.Employee.Id, d.Employee.FullName, d.Employee.Email } : null
                 })
@@ -850,6 +854,27 @@ namespace STS.Controllers
             {
                 return BadRequest(new { message = "A comment is required to update the status." });
             }
+            if (StsPipeline.IsConvertedStatus(request.Status))
+            {
+                if (string.IsNullOrWhiteSpace(request.ConvertedFor)) return BadRequest(new { message = "Converted For is required for a converted status." });
+                if (request.ConvertedPrice == null) return BadRequest(new { message = "Price is required for a converted status." });
+            }
+            if (request.Status == "OTHER" && string.IsNullOrWhiteSpace(request.OtherStatusText))
+            {
+                return BadRequest(new { message = "Please describe the custom status." });
+            }
+
+            // Admin can log this update on behalf of a specific employee, or under
+            // their own identity — default to the admin's own identity.
+            int entryEmployeeId = userId;
+            bool updatedAsAdmin = true;
+            if (request.EmployeeId.HasValue && !request.UpdatedAsAdmin)
+            {
+                var targetEmployee = await _context.Users.FirstOrDefaultAsync(u => u.Id == request.EmployeeId.Value && u.CompanyId == companyId);
+                if (targetEmployee == null) return BadRequest(new { message = "Invalid employee selected." });
+                entryEmployeeId = targetEmployee.Id;
+                updatedAsAdmin = false;
+            }
 
             var previousStatus = salesData.Status;
             salesData.Status = request.Status;
@@ -861,7 +886,7 @@ namespace STS.Controllers
             {
                 TenantCompanyId = companyId,
                 SalesDataId = salesData.Id,
-                EmployeeId = userId,
+                EmployeeId = entryEmployeeId,
                 CompanyID = salesData.CompanyID,
                 CompanyName = salesData.CompanyName,
                 PreviousStatus = previousStatus,
@@ -872,6 +897,10 @@ namespace STS.Controllers
                 NextCallMeetingDate = request.NextCallMeetingDate,
                 CcTo = request.CcTo,
                 Subject = request.Subject,
+                ConvertedFor = request.ConvertedFor,
+                ConvertedPrice = request.ConvertedPrice,
+                OtherStatusText = request.OtherStatusText,
+                UpdatedAsAdmin = updatedAsAdmin,
                 ReportDate = DateTime.UtcNow.Date,
                 CreatedAt = DateTime.UtcNow
             });
@@ -1349,6 +1378,20 @@ namespace STS.Controllers
         public DateTime? NextCallMeetingDate { get; set; }
         public string? CcTo { get; set; }
         public string? Subject { get; set; }
+
+        // Required when Status is one of StsPipeline.ConvertedStatuses.
+        public string? ConvertedFor { get; set; }
+        public decimal? ConvertedPrice { get; set; }
+
+        // Required when Status == "OTHER" — the custom status text.
+        public string? OtherStatusText { get; set; }
+
+        // Admin-only: log this update on behalf of a specific employee instead
+        // of the logged-in admin. Ignored by the employee-facing endpoint.
+        public int? EmployeeId { get; set; }
+
+        // Admin-only: explicitly log the update under the admin's own identity.
+        public bool UpdatedAsAdmin { get; set; }
     }
 
     public class ReviewStsRequestRequest
