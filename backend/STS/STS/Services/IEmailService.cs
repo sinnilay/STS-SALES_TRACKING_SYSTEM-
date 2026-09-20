@@ -8,5 +8,8 @@ namespace STS.Services
         Task SendWelcomeEmailAsync(string toEmail, string fullName, string password);
         Task SendOtpEmailAsync(string toEmail, string otp);
         Task SendTrialRequestNotificationAsync(TrialRequest request);
+        Task SendStsUpdateNotificationAsync(StsUpdateNotificationData data);
+        Task SendTrialApprovedEmailAsync(TrialRequest request, string? loginPassword, string loginUrl);
+        Task SendTrialRejectedEmailAsync(TrialRequest request);
     }
 }

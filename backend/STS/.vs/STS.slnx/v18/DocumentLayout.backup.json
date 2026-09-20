@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
       "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\sts.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
@@ -30,7 +30,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 2,
           "Children": [
             {
               "$type": "Document",
@@ -58,25 +58,26 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "appsettings.json",
               "DocumentMoniker": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\appsettings.json",
               "RelativeDocumentMoniker": "STS\\appsettings.json",
               "ToolTip": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\appsettings.json",
               "RelativeToolTip": "STS\\appsettings.json",
-              "ViewState": "AgIAAAkAAAAAAAAAAAAAABoAAAABAAAAAAAAAA==",
+              "ViewState": "AgIAAAkAAAAAAAAAAAAAABoAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2026-07-19T14:44:39.26Z"
+              "WhenOpened": "2026-07-19T14:44:39.26Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "Program.cs",
               "DocumentMoniker": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Program.cs",
               "RelativeDocumentMoniker": "STS\\Program.cs",
               "ToolTip": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Program.cs",
               "RelativeToolTip": "STS\\Program.cs",
-              "ViewState": "AgIAAAgBAAAAAAAAAAAAABEBAABBAAAAAAAAAA==",
+              "ViewState": "AgIAABoBAAAAAAAAAAAAACMBAAA+AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-07-11T14:34:01.995Z",
               "EditorCaption": ""

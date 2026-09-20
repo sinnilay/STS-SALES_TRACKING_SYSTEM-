@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using STS.Data;
 using STS.Filters;
 using STS.Models;
@@ -23,13 +24,15 @@ namespace STS.Controllers
         private readonly IAuthService _authService;
         private readonly IEmailService _emailService;
         private readonly IWebHostEnvironment _env;
+        private readonly ILogger<AdminController> _logger;
 
-        public AdminController(AppDbContext context, IAuthService authService, IEmailService emailService, IWebHostEnvironment env)
+        public AdminController(AppDbContext context, IAuthService authService, IEmailService emailService, IWebHostEnvironment env, ILogger<AdminController> logger)
         {
             _context = context;
             _authService = authService;
             _emailService = emailService;
             _env = env;
+            _logger = logger;
         }
 
         private int GetCompanyId()
@@ -68,7 +71,115 @@ namespace STS.Controllers
                 company = await _context.Companies.FirstOrDefaultAsync();
             }
             if (company == null) return NotFound(new { message = "Company not found" });
-            return Ok(new { company.Id, company.Name, company.EnabledModules, company.IsTrial, company.AccountType, company.SubscriptionExpiry, company.TrialEndDate, company.IsActive });
+            return Ok(new { 
+                company.Id, 
+                company.Name, 
+                company.LogoUrl,
+                company.OwnerEmail,
+                company.OwnerContact,
+                company.Website,
+                company.City,
+                company.State,
+                company.Country,
+                company.Address,
+                company.ZipCode,
+                company.EnabledModules, 
+                company.IsTrial, 
+                company.AccountType, 
+                company.SubscriptionExpiry, 
+                company.TrialEndDate, 
+                company.IsActive 
+            });
+        }
+
+        [HttpPost("company-logo")]
+        public async Task<IActionResult> UploadCompanyLogo([FromForm] IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "Please select an image file to upload." });
+
+            var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp", ".svg" };
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(extension))
+                return BadRequest(new { message = "Only PNG, JPG, JPEG, WEBP, and SVG images are supported." });
+
+            if (file.Length > MaxImageSizeBytes)
+                return BadRequest(new { message = "File size exceeds the 5 MB limit." });
+
+            int companyId = GetCompanyId();
+            var company = await _context.Companies.FindAsync(companyId);
+            if (company == null)
+            {
+                company = await _context.Companies.FirstOrDefaultAsync();
+            }
+            if (company == null) return NotFound(new { message = "Company not found." });
+
+            var logosFolder = Path.Combine(_env.ContentRootPath, "companylogos");
+            Directory.CreateDirectory(logosFolder);
+
+            var newFileName = $"company_{company.Id}_{Guid.NewGuid():N}{extension}";
+            var newFilePath = Path.Combine(logosFolder, newFileName);
+
+            using (var stream = new FileStream(newFilePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // Clean up old local logo if one exists
+            if (!string.IsNullOrWhiteSpace(company.LogoUrl) && company.LogoUrl.Contains("/companylogos/"))
+            {
+                try
+                {
+                    var oldFileName = Path.GetFileName(new Uri(company.LogoUrl).LocalPath);
+                    var oldFilePath = Path.Combine(logosFolder, oldFileName);
+                    if (System.IO.File.Exists(oldFilePath))
+                    {
+                        System.IO.File.Delete(oldFilePath);
+                    }
+                }
+                catch { /* Ignore cleanup errors */ }
+            }
+
+            company.LogoUrl = $"{Request.Scheme}://{Request.Host}/companylogos/{newFileName}";
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                logoUrl = company.LogoUrl,
+                message = "Company logo uploaded successfully."
+            });
+        }
+
+        [HttpDelete("company-logo")]
+        public async Task<IActionResult> RemoveCompanyLogo()
+        {
+            int companyId = GetCompanyId();
+            var company = await _context.Companies.FindAsync(companyId);
+            if (company == null)
+            {
+                company = await _context.Companies.FirstOrDefaultAsync();
+            }
+            if (company == null) return NotFound(new { message = "Company not found." });
+
+            var logosFolder = Path.Combine(_env.ContentRootPath, "companylogos");
+            if (!string.IsNullOrWhiteSpace(company.LogoUrl) && company.LogoUrl.Contains("/companylogos/"))
+            {
+                try
+                {
+                    var oldFileName = Path.GetFileName(new Uri(company.LogoUrl).LocalPath);
+                    var oldFilePath = Path.Combine(logosFolder, oldFileName);
+                    if (System.IO.File.Exists(oldFilePath))
+                    {
+                        System.IO.File.Delete(oldFilePath);
+                    }
+                }
+                catch { /* Ignore cleanup errors */ }
+            }
+
+            company.LogoUrl = null;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Company logo removed successfully." });
         }
 
         // --- GPS Tracking Module ---
@@ -868,12 +979,23 @@ namespace STS.Controllers
             // their own identity — default to the admin's own identity.
             int entryEmployeeId = userId;
             bool updatedAsAdmin = true;
+            string updatedByName = "Admin";
+            string updatedByRole = "Admin";
             if (request.EmployeeId.HasValue && !request.UpdatedAsAdmin)
             {
                 var targetEmployee = await _context.Users.FirstOrDefaultAsync(u => u.Id == request.EmployeeId.Value && u.CompanyId == companyId);
                 if (targetEmployee == null) return BadRequest(new { message = "Invalid employee selected." });
                 entryEmployeeId = targetEmployee.Id;
                 updatedAsAdmin = false;
+                updatedByName = targetEmployee.FullName;
+                updatedByRole = !string.IsNullOrWhiteSpace(targetEmployee.EmployeeRole)
+                    ? targetEmployee.EmployeeRole
+                    : (!string.IsNullOrWhiteSpace(targetEmployee.Designation) ? targetEmployee.Designation : "Employee");
+            }
+            else
+            {
+                var admin = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                if (admin != null && !string.IsNullOrWhiteSpace(admin.FullName)) updatedByName = admin.FullName;
             }
 
             var previousStatus = salesData.Status;
@@ -881,6 +1003,19 @@ namespace STS.Controllers
             salesData.Priority = request.Priority;
             salesData.LastActionDate = DateTime.UtcNow;
             salesData.NextActionDate = request.NextCallMeetingDate;
+
+            string finalSubject = !string.IsNullOrWhiteSpace(request.Subject)
+                ? request.Subject
+                : EmailService.BuildStsUpdateSubject(new StsUpdateNotificationData
+                {
+                    UpdatedByName = updatedByName,
+                    UpdatedByRole = updatedByRole,
+                    CompanyName = salesData.CompanyName,
+                    CompanyID = salesData.CompanyID,
+                    CityDistrict = salesData.CityDistrict,
+                    NewStatus = request.Status,
+                    OtherStatusText = request.OtherStatusText
+                });
 
             _context.DsrEntries.Add(new DsrEntry
             {
@@ -896,7 +1031,7 @@ namespace STS.Controllers
                 CallMeetingDate = request.CallMeetingDate,
                 NextCallMeetingDate = request.NextCallMeetingDate,
                 CcTo = request.CcTo,
-                Subject = request.Subject,
+                Subject = finalSubject,
                 ConvertedFor = request.ConvertedFor,
                 ConvertedPrice = request.ConvertedPrice,
                 OtherStatusText = request.OtherStatusText,
@@ -906,6 +1041,16 @@ namespace STS.Controllers
             });
 
             await _context.SaveChangesAsync();
+
+            await StsUpdateNotifier.NotifyAsync(
+                _context, _emailService, _logger, companyId, salesData,
+                previousStatus, request.Status, request.Priority,
+                request.CallMeetingDate, request.NextCallMeetingDate, request.CcTo,
+                finalSubject, request.Comment ?? string.Empty, request.OtherStatusText,
+                request.ConvertedFor, request.ConvertedPrice,
+                updatedByName, updatedByRole
+            );
+
             return Ok(new { message = "Status updated successfully." });
         }
 

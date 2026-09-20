@@ -15,6 +15,7 @@ const AdminLayout = () => {
   const [expandedMenus, setExpandedMenus] = useState({});
   const [liveEnabledModules, setLiveEnabledModules] = useState(user?.enabledModules);
   const [companyName, setCompanyName] = useState(user?.companyName || 'Property Workspace');
+  const [companyLogoUrl, setCompanyLogoUrl] = useState(null);
 
   useEffect(() => {
     const fetchCompanyModules = async () => {
@@ -29,12 +30,27 @@ const AdminLayout = () => {
           if (cName) {
             setCompanyName(cName);
           }
+          const logo = response.data.logoUrl || response.data.LogoUrl;
+          if (logo !== undefined) {
+            setCompanyLogoUrl(logo || null);
+          }
         }
       } catch (e) {
         // Fallback to user context
       }
     };
     fetchCompanyModules();
+
+    const handleCompanyUpdate = (e) => {
+      if (e.detail?.logoUrl !== undefined) {
+        setCompanyLogoUrl(e.detail.logoUrl || null);
+      }
+      if (e.detail?.companyName) {
+        setCompanyName(e.detail.companyName);
+      }
+    };
+    window.addEventListener('company-updated', handleCompanyUpdate);
+    return () => window.removeEventListener('company-updated', handleCompanyUpdate);
   }, []);
 
   useEffect(() => {
@@ -175,12 +191,18 @@ const AdminLayout = () => {
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 fixed inset-y-0 z-10 transition-colors duration-300">
         <div className="p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
-              <span className="text-white font-bold text-xl">W</span>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Workspace</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            {companyLogoUrl ? (
+              <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-gray-200 dark:border-slate-700 flex items-center justify-center p-1 shadow-sm shrink-0">
+                <img src={companyLogoUrl} alt={companyName} className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)] shrink-0">
+                <span className="text-white font-bold text-xl">{companyName?.charAt(0)?.toUpperCase() || 'W'}</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight truncate" title={companyName}>{companyName || 'Workspace'}</h1>
               <p className="text-xs font-semibold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest">Admin Portal</p>
             </div>
           </div>
@@ -226,11 +248,17 @@ const AdminLayout = () => {
         {/* Mobile Navbar */}
         <header className="md:hidden bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-20 transition-colors duration-300">
           <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center shadow-md">
-                <span className="text-white font-bold text-sm">W</span>
-              </div>
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Workspace</h1>
+            <div className="flex items-center gap-2 min-w-0">
+              {companyLogoUrl ? (
+                <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-gray-200 dark:border-slate-700 flex items-center justify-center p-0.5 shadow-sm shrink-0">
+                  <img src={companyLogoUrl} alt={companyName} className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center shadow-md shrink-0">
+                  <span className="text-white font-bold text-sm">{companyName?.charAt(0)?.toUpperCase() || 'W'}</span>
+                </div>
+              )}
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate max-w-[180px]">{companyName || 'Workspace'}</h1>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -270,9 +298,15 @@ const AdminLayout = () => {
           
           {/* Left Info Box */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 border border-white/20">
-              <Building2 className="w-5 h-5" />
-            </div>
+            {companyLogoUrl ? (
+              <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 dark:border-slate-700 p-1 flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+                <img src={companyLogoUrl} alt={companyName} className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 border border-white/20 shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Enterprise Node</span>
@@ -284,7 +318,11 @@ const AdminLayout = () => {
 
           {/* Centered Large Professional Company Banner */}
           <div className="flex items-center gap-3 px-8 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-50/90 via-purple-50/90 to-indigo-50/90 dark:from-indigo-950/80 dark:via-purple-950/80 dark:to-indigo-950/80 border-2 border-indigo-200/80 dark:border-indigo-800/80 shadow-md shadow-indigo-500/5 transform hover:scale-[1.01] transition-transform">
-            <Sparkles className="w-4.5 h-4.5 text-amber-500 dark:text-amber-400 animate-pulse" />
+            {companyLogoUrl ? (
+              <img src={companyLogoUrl} alt={companyName} className="h-6 max-w-[90px] object-contain shrink-0" />
+            ) : (
+              <Sparkles className="w-4.5 h-4.5 text-amber-500 dark:text-amber-400 animate-pulse" />
+            )}
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Welcome to</span>
               <span className="text-lg sm:text-xl font-black tracking-tight uppercase text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 dark:from-cyan-400 dark:via-indigo-300 dark:to-purple-400 drop-shadow-sm px-1">

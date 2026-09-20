@@ -122,6 +122,15 @@ using (var scope = app.Services.CreateScope())
             END
 
             IF NOT EXISTS (
+                SELECT * FROM sys.columns 
+                WHERE object_id = OBJECT_ID(N'[Companies]') 
+                AND name = 'LogoUrl'
+            )
+            BEGIN
+                ALTER TABLE [Companies] ADD [LogoUrl] nvarchar(max) NULL;
+            END
+
+            IF NOT EXISTS (
                 SELECT * FROM sys.columns
                 WHERE object_id = OBJECT_ID(N'[Users]')
                 AND name = 'ProfilePicturePath'
@@ -252,12 +261,21 @@ using (var scope = app.Services.CreateScope())
             END
 
             IF NOT EXISTS (
-                SELECT * FROM sys.columns 
-                WHERE object_id = OBJECT_ID(N'[DsrEntries]') 
+                SELECT * FROM sys.columns
+                WHERE object_id = OBJECT_ID(N'[DsrEntries]')
                 AND name = 'UpdatedAsAdmin'
             )
             BEGIN
                 ALTER TABLE [DsrEntries] ADD [UpdatedAsAdmin] bit NOT NULL DEFAULT 0;
+            END
+
+            IF NOT EXISTS (
+                SELECT * FROM sys.columns
+                WHERE object_id = OBJECT_ID(N'[TrialRequests]')
+                AND name = 'PendingPassword'
+            )
+            BEGIN
+                ALTER TABLE [TrialRequests] ADD [PendingPassword] nvarchar(max) NULL;
             END
         ");
     }
@@ -320,6 +338,15 @@ app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(siteImagesPath),
     RequestPath = "/siteimages"
+});
+
+// Serve uploaded company logos from a dedicated folder in the backend project
+var companyLogosPath = Path.Combine(app.Environment.ContentRootPath, "companylogos");
+Directory.CreateDirectory(companyLogosPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(companyLogosPath),
+    RequestPath = "/companylogos"
 });
 
 //app.UseCors("AllowFrontend");

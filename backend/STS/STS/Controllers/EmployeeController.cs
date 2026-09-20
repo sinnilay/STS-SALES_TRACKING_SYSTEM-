@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using STS.Data;
 using STS.Filters;
 using STS.Models;
@@ -22,11 +23,15 @@ namespace STS.Controllers
 
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
+        private readonly IEmailService _emailService;
+        private readonly ILogger<EmployeeController> _logger;
 
-        public EmployeeController(AppDbContext context, IWebHostEnvironment env)
+        public EmployeeController(AppDbContext context, IWebHostEnvironment env, IEmailService emailService, ILogger<EmployeeController> logger)
         {
             _context = context;
             _env = env;
+            _emailService = emailService;
+            _logger = logger;
         }
 
         private int GetCompanyId()
@@ -63,7 +68,7 @@ namespace STS.Controllers
             int companyId = GetCompanyId();
             var company = await _context.Companies.FindAsync(companyId);
             if (company == null) return NotFound(new { message = "Company not found" });
-            return Ok(new { company.Id, company.Name, company.EnabledModules, company.IsTrial, company.AccountType, company.SubscriptionExpiry, company.TrialEndDate, company.IsActive });
+            return Ok(new { company.Id, company.Name, company.LogoUrl, company.EnabledModules, company.IsTrial, company.AccountType, company.SubscriptionExpiry, company.TrialEndDate, company.IsActive });
         }
 
         [HttpGet("employees")]
@@ -700,6 +705,25 @@ namespace STS.Controllers
             salesData.LastActionDate = DateTime.UtcNow;
             salesData.NextActionDate = request.NextCallMeetingDate;
 
+            var actingUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            var updatedByName = actingUser?.FullName ?? "Employee";
+            var updatedByRole = !string.IsNullOrWhiteSpace(actingUser?.EmployeeRole)
+                ? actingUser!.EmployeeRole
+                : (!string.IsNullOrWhiteSpace(actingUser?.Designation) ? actingUser!.Designation : "Employee");
+
+            string finalSubject = !string.IsNullOrWhiteSpace(request.Subject)
+                ? request.Subject
+                : EmailService.BuildStsUpdateSubject(new StsUpdateNotificationData
+                {
+                    UpdatedByName = updatedByName,
+                    UpdatedByRole = updatedByRole,
+                    CompanyName = salesData.CompanyName,
+                    CompanyID = salesData.CompanyID,
+                    CityDistrict = salesData.CityDistrict,
+                    NewStatus = request.Status,
+                    OtherStatusText = request.OtherStatusText
+                });
+
             _context.DsrEntries.Add(new DsrEntry
             {
                 TenantCompanyId = companyId,
@@ -714,7 +738,7 @@ namespace STS.Controllers
                 CallMeetingDate = request.CallMeetingDate,
                 NextCallMeetingDate = request.NextCallMeetingDate,
                 CcTo = request.CcTo,
-                Subject = request.Subject,
+                Subject = finalSubject,
                 ConvertedFor = request.ConvertedFor,
                 ConvertedPrice = request.ConvertedPrice,
                 OtherStatusText = request.OtherStatusText,
@@ -723,6 +747,16 @@ namespace STS.Controllers
             });
 
             await _context.SaveChangesAsync();
+
+            await StsUpdateNotifier.NotifyAsync(
+                _context, _emailService, _logger, companyId, salesData,
+                previousStatus, request.Status, request.Priority,
+                request.CallMeetingDate, request.NextCallMeetingDate, request.CcTo,
+                finalSubject, request.Comment ?? string.Empty, request.OtherStatusText,
+                request.ConvertedFor, request.ConvertedPrice,
+                updatedByName, updatedByRole
+            );
+
             return Ok(new { message = "Status updated successfully." });
         }
 

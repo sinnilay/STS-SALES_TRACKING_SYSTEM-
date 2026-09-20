@@ -15,6 +15,7 @@ const SalesLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [liveEnabledModules, setLiveEnabledModules] = useState(user?.enabledModules);
   const [companyName, setCompanyName] = useState(user?.companyName || 'Property Workspace');
+  const [companyLogoUrl, setCompanyLogoUrl] = useState(null);
   const [myProfile, setMyProfile] = useState(null);
 
   useEffect(() => {
@@ -33,6 +34,10 @@ const SalesLayout = () => {
           const cName = response.data.name || response.data.Name;
           if (cName) {
             setCompanyName(cName);
+          }
+          const logo = response.data.logoUrl || response.data.LogoUrl;
+          if (logo !== undefined) {
+            setCompanyLogoUrl(logo || null);
           }
         }
       } catch (e) {
@@ -89,9 +94,18 @@ const SalesLayout = () => {
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 fixed inset-y-0 z-10 transition-colors duration-300">
         <div className="p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain dark:brightness-150" />
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Sales Portal</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            {companyLogoUrl ? (
+              <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-gray-200 dark:border-slate-700 flex items-center justify-center p-1 shadow-sm shrink-0">
+                <img src={companyLogoUrl} alt={companyName} className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain dark:brightness-150 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight truncate" title={companyName}>{companyName || 'Sales Portal'}</h1>
+              <p className="text-xs font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-widest">Sales Portal</p>
+            </div>
           </div>
         </div>
         
@@ -157,9 +171,15 @@ const SalesLayout = () => {
         {/* Mobile Navbar */}
         <header className="md:hidden bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-20 transition-colors duration-300">
           <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="Logo" className="h-7 w-auto object-contain dark:brightness-150" />
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Sales</h1>
+            <div className="flex items-center gap-2 min-w-0">
+              {companyLogoUrl ? (
+                <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-gray-200 dark:border-slate-700 flex items-center justify-center p-0.5 shadow-sm shrink-0">
+                  <img src={companyLogoUrl} alt={companyName} className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <img src="/logo.png" alt="Logo" className="h-7 w-auto object-contain dark:brightness-150 shrink-0" />
+              )}
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate max-w-[180px]">{companyName || 'Sales'}</h1>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -218,9 +238,15 @@ const SalesLayout = () => {
           
           {/* Left Info Box */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 border border-white/20">
-              <Building2 className="w-5 h-5" />
-            </div>
+            {companyLogoUrl ? (
+              <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 dark:border-slate-700 p-1 flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+                <img src={companyLogoUrl} alt={companyName} className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 border border-white/20 shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Sales Operational Node</span>
@@ -232,7 +258,11 @@ const SalesLayout = () => {
 
           {/* Centered Large Professional Company Banner */}
           <div className="flex items-center gap-3 px-8 py-2.5 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/90 to-blue-50/90 dark:from-blue-950/80 dark:via-indigo-950/80 dark:to-blue-950/80 border-2 border-blue-200/80 dark:border-blue-800/80 shadow-md shadow-blue-500/5 transform hover:scale-[1.01] transition-transform">
-            <Sparkles className="w-4.5 h-4.5 text-amber-500 dark:text-amber-400 animate-pulse" />
+            {companyLogoUrl ? (
+              <img src={companyLogoUrl} alt={companyName} className="h-6 max-w-[90px] object-contain shrink-0" />
+            ) : (
+              <Sparkles className="w-4.5 h-4.5 text-amber-500 dark:text-amber-400 animate-pulse" />
+            )}
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Welcome to</span>
               <span className="text-lg sm:text-xl font-black tracking-tight uppercase text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 dark:from-cyan-400 dark:via-blue-300 dark:to-indigo-400 drop-shadow-sm px-1">

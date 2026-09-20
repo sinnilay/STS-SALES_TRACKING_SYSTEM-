@@ -30,4 +30,21 @@ export const settingsService = {
     const response = await api.post('/Settings/employee-roles', { name });
     return response.data;
   },
+
+  getMyCompany: async () => {
+    const response = await api.get('/Admin/my-company');
+    return response.data;
+  },
+
+  uploadCompanyLogo: async (formData) => {
+    const response = await api.post('/Admin/company-logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  removeCompanyLogo: async () => {
+    const response = await api.delete('/Admin/company-logo');
+    return response.data;
+  },
 };

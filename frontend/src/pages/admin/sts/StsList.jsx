@@ -395,6 +395,17 @@ const StsList = () => {
         onClose={() => setSelectedRecordForDetails(null)}
         salesRecord={selectedRecordForDetails}
         fetchHistory={stsService.getSalesHistory}
+        onUpdateStatus={stsService.updateSalesStatus}
+        onUpdated={async () => {
+          if (!selectedRecordForDetails) return;
+          try {
+            const record = await stsService.getSalesDataById(selectedRecordForDetails.id);
+            setSelectedRecordForDetails(record);
+          } catch (error) {
+            toast.error('Failed to refresh STS details');
+          }
+          fetchSales();
+        }}
       />
 
       {/* Delete Confirmation */}

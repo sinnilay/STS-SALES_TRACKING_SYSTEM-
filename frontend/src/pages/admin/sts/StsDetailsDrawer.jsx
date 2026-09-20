@@ -8,7 +8,7 @@ import StatusPipelineModal from './StatusPipelineModal';
 // `onUpdateStatus` is only passed in by admin-facing screens (e.g. the company
 // admin's Daily Report drawer) — that's what gates the "Update Status" button,
 // since employee-facing usages of this drawer already have their own update entry point.
-const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, fetchHistory, onUpdateStatus, onUpdated }) => {
+const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, fetchHistory, onUpdateStatus, onUpdated, isAdmin }) => {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
@@ -343,7 +343,7 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
           {salesRecord && (
             <StatusPipelineModal
               salesRecord={salesRecord}
-              isAdmin
+              isAdmin={isAdmin}
               onClose={() => setShowUpdateModal(false)}
               onUpdateStatus={onUpdateStatus}
               onSuccess={() => {

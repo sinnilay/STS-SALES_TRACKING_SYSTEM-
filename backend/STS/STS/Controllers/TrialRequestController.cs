@@ -65,6 +65,7 @@ namespace STS.Controllers
                 Industry = dto.Industry?.Trim() ?? string.Empty,
                 StaffLimit = dto.StaffLimit > 0 ? dto.StaffLimit : 10,
                 AdminPasswordHash = _authService.HashPassword(dto.AdminPassword),
+                PendingPassword = dto.AdminPassword,
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };

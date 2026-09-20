@@ -23,5 +23,42 @@ namespace STS.Services
         public static bool IsValidStatus(string status) => ValidStatuses.Contains(status);
 
         public static bool IsConvertedStatus(string status) => ConvertedStatuses.Contains(status);
+
+        // Human-readable labels for the status codes above — kept in sync with
+        // frontend/src/constants/stsPipeline.jsx (STS_STATUS_OPTIONS), used to
+        // render status update notification emails.
+        private static readonly Dictionary<string, string> StatusLabels = new()
+        {
+            ["N_O"] = "Company Profile Not Open",
+            ["W_N"] = "Wrong No.",
+            ["CPNA"] = "Call Person Not Available",
+            ["C_B"] = "Call Back",
+            ["C_C"] = "Cold Call",
+            ["APPMT"] = "Appointment Fix",
+            ["DMUPIFC"] = "Decision Making Unit Presentation In Fresh Call",
+            ["PGIFC"] = "Prospect Generated in Fresh Call",
+            ["PGIFU"] = "Prospect Generated in Follow Up",
+            ["DMUPIFU1"] = "Decision Making Unit Presentation In Follow Up First Time",
+            ["DMUPIFU2"] = "Decision Making Unit Presentation In Follow Up Second Time",
+            ["DMUPIFU3"] = "Decision Making Unit Presentation In Follow Up Third Time",
+            ["SERV"] = "Only Service Meeting",
+            ["JUNK"] = "All Information of Company are Wrong",
+            ["NI"] = "Not Interested",
+            ["NI_PH"] = "Not Interested over Phone",
+            ["NI_FC"] = "Not Interested in First Meeting",
+            ["NI_FU"] = "Not Interested in Follow Up",
+            ["CNVT"] = "Converted",
+            ["A_CNVT"] = "Already Converted",
+            ["CNVT_PH"] = "Converted Over Phone",
+            ["CNVT_FC"] = "Converted in First Call",
+            ["CNVT_FU"] = "Converted in Follow-up",
+            ["OTHER"] = "Other",
+        };
+
+        public static string GetStatusLabel(string? status)
+        {
+            if (string.IsNullOrWhiteSpace(status)) return "New";
+            return StatusLabels.TryGetValue(status, out var label) ? label : status;
+        }
     }
 }

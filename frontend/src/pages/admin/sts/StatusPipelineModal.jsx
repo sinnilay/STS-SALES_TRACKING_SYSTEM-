@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { stsService } from '../../../services/stsService';
 import { employeeService } from '../../../services/employeeService';
+import { profileService } from '../../../services/profileService';
+import { useAuth } from '../../../context/AuthContext';
 import Button from '../../../components/Button';
-import { STS_STATUS_OPTIONS, PRIORITY_OPTIONS, isConverted } from '../../../constants/stsPipeline';
+import { STS_STATUS_OPTIONS, PRIORITY_OPTIONS, isConverted, getStatusDisplay } from '../../../constants/stsPipeline';
 
 const FIELD_LABEL = "block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1.5";
 const FIELD_INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-sm transition-colors";
@@ -28,20 +30,77 @@ const initialForm = {
 // Next Call/Meeting Date, CC To, Subject and Comments — mirroring the STS
 // report's update form. Every submission is saved as its own history entry;
 // there's no forward-only pipeline, any status code can be picked any time.
-// `isAdmin` gates the extra "log this as / on behalf of an employee" control,
-// which only makes sense from admin-facing screens.
+// `isAdmin` gates the extra "log this as / on behalf of an employee" control.
 const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, isAdmin }) => {
+  const { user } = useAuth();
+  const effectiveIsAdmin = isAdmin !== undefined ? isAdmin : user?.role === 'Admin';
+
   const [form, setForm] = useState(initialForm);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [employees, setEmployees] = useState([]);
+  const [myProfile, setMyProfile] = useState(null);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!effectiveIsAdmin) return;
     employeeService.getAllEmployees()
       .then((data) => setEmployees(data || []))
       .catch(() => setEmployees([]));
-  }, [isAdmin]);
+  }, [effectiveIsAdmin]);
+
+  useEffect(() => {
+    profileService.getMyProfile()
+      .then(setMyProfile)
+      .catch(() => setMyProfile(null));
+  }, []);
+
+  // System-generated Subject according to login role and status:
+  // - Field Sales: "Field sales Sales : <Name> [ <Company> <STS ID> <City> ] Status: <Code> (<Label>)"
+  // - Tele Sales: "Telesales: <Name> [ <Company> <STS ID> <City> ] Status: <Code> (<Label>)"
+  // - Admin: "Admin: <Name> [ <Company> <STS ID> <City> ] Status: <Code> (<Label>)"
+  useEffect(() => {
+    let prefix = '';
+
+    if (effectiveIsAdmin) {
+      if (form.actingAs === ADMIN_ACTOR) {
+        const adminName = myProfile?.fullName?.split(' ')[0] || user?.fullName?.split(' ')[0] || 'Admin';
+        prefix = `Admin: ${adminName}`;
+      } else {
+        const actingEmployee = employees.find((e) => String(e.id) === String(form.actingAs));
+        const empName = actingEmployee?.fullName?.split(' ')[0] || 'Employee';
+        const role = actingEmployee?.employeeRole || actingEmployee?.designation || '';
+        if (role === 'Field Sales') {
+          prefix = `Field sales Sales : ${empName}`;
+        } else if (role === 'Tele Sales') {
+          prefix = `Telesales: ${empName}`;
+        } else {
+          prefix = `${role || 'Employee'}: ${empName}`;
+        }
+      }
+    } else {
+      const myName = myProfile?.fullName?.split(' ')[0] || user?.fullName?.split(' ')[0] || 'Employee';
+      const role = myProfile?.employeeRole || myProfile?.designation || '';
+      if (role === 'Field Sales') {
+        prefix = `Field sales Sales : ${myName}`;
+      } else if (role === 'Tele Sales') {
+        prefix = `Telesales: ${myName}`;
+      } else if (myProfile?.role === 'Admin' || user?.role === 'Admin') {
+        prefix = `Admin: ${myName}`;
+      } else {
+        prefix = `${role || 'Sales'}: ${myName}`;
+      }
+    }
+
+    const city = salesRecord?.cityDistrict || salesRecord?.city || '';
+    const companyBlock = `[ ${salesRecord?.companyName || ''} ${salesRecord?.companyID || ''}${city ? ` ${city}` : ''} ]`;
+    const statusText = getStatusDisplay(form.status, form.otherStatusText);
+    const statusSuffix = statusText ? ` Status: ${statusText}` : '';
+
+    const autoSubject = `${prefix} ${companyBlock}${statusSuffix}`;
+
+    setForm((f) => (f.subject === autoSubject ? f : { ...f, subject: autoSubject }));
+  }, [effectiveIsAdmin, form.actingAs, form.status, form.otherStatusText, employees, myProfile, user, salesRecord]);
+
 
   const setField = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
@@ -81,7 +140,7 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
       convertedPrice: statusIsConverted ? Number(form.convertedPrice) : null,
     };
 
-    if (isAdmin) {
+    if (effectiveIsAdmin) {
       payload.updatedAsAdmin = form.actingAs === ADMIN_ACTOR;
       payload.employeeId = form.actingAs === ADMIN_ACTOR ? null : Number(form.actingAs);
     }
@@ -179,7 +238,7 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
           </>
         )}
 
-        {isAdmin && (
+        {effectiveIsAdmin && (
           <div className="sm:col-span-2">
             <label className={FIELD_LABEL}>Log This Update As</label>
             <select value={form.actingAs} onChange={setField('actingAs')} className={FIELD_INPUT}>
@@ -198,12 +257,25 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
 
         <div>
           <label className={FIELD_LABEL}>CC To</label>
-          <input type="text" placeholder="email@example.com" value={form.ccTo} onChange={setField('ccTo')} className={FIELD_INPUT} />
+          <input
+            type="text"
+            placeholder="email@example.com, another@example.com"
+            title="The company Admin is always notified — add emails here to also CC them, separated by commas"
+            value={form.ccTo}
+            onChange={setField('ccTo')}
+            className={FIELD_INPUT}
+          />
         </div>
 
         <div className="sm:col-span-2">
           <label className={FIELD_LABEL}>Subject <span className="text-red-500">*</span></label>
-          <input type="text" placeholder="What was this update about?" value={form.subject} onChange={setField('subject')} className={FIELD_INPUT} />
+          <input
+            type="text"
+            readOnly
+            value={form.subject}
+            title="Auto-generated from who this update is logged as and the company — not editable"
+            className={`${FIELD_INPUT} cursor-not-allowed bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400`}
+          />
           {errors.subject && <p className="mt-1 text-xs text-red-600">{errors.subject}</p>}
         </div>
 

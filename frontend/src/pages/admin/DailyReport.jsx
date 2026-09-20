@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Calendar, ClipboardList, CheckCircle2, XCircle, BarChart3,
-  Sparkles, RefreshCw, Filter, X, Tag, ArrowLeft, Users
+  Sparkles, RefreshCw, Filter, X, Tag, ArrowLeft, Users, CalendarDays,
+  CalendarRange, History, SlidersHorizontal
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { dsrService } from '../../services/dsrService';
@@ -30,6 +31,87 @@ const relativeDayLabel = (dateKey) => {
   return null;
 };
 
+// yyyy-mm-dd in local time — Date#toISOString is UTC and can roll the date
+// back/forward a day depending on the viewer's timezone, which would silently
+// shift these date-range filters.
+const toDateInput = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const addDays = (date, days) => {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+};
+
+// Quick date-range presets shown as chips above the DSR list — mirrors the
+// "Today / 7D / 30D / This Month / …" pattern common in analytics dashboards.
+// Each `range()` is computed fresh (not memoized) since "today" changes daily.
+const DATE_RANGE_PRESETS = [
+  { key: 'all', label: 'All Time', icon: History, range: () => ({ from: '', to: '' }) },
+  { key: 'today', label: 'Today', icon: Calendar, range: () => { const t = toDateInput(new Date()); return { from: t, to: t }; } },
+  { key: 'yesterday', label: 'Yesterday', icon: Calendar, range: () => { const y = toDateInput(addDays(new Date(), -1)); return { from: y, to: y }; } },
+  {
+    key: 'thisWeek', label: 'This Week', icon: CalendarDays,
+    range: () => {
+      const today = new Date();
+      const day = today.getDay(); // 0=Sun..6=Sat
+      const mondayOffset = day === 0 ? -6 : 1 - day;
+      return { from: toDateInput(addDays(today, mondayOffset)), to: toDateInput(today) };
+    },
+  },
+  { key: 'last7', label: 'Last 7 Days', icon: CalendarRange, range: () => ({ from: toDateInput(addDays(new Date(), -6)), to: toDateInput(new Date()) }) },
+  { key: 'last30', label: 'Last 30 Days', icon: CalendarRange, range: () => ({ from: toDateInput(addDays(new Date(), -29)), to: toDateInput(new Date()) }) },
+  {
+    key: 'thisMonth', label: 'This Month', icon: CalendarDays,
+    range: () => { const now = new Date(); return { from: toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)), to: toDateInput(now) }; },
+  },
+  {
+    key: 'lastMonth', label: 'Last Month', icon: CalendarDays,
+    range: () => {
+      const now = new Date();
+      const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { from: toDateInput(firstOfLastMonth), to: toDateInput(lastOfLastMonth) };
+    },
+  },
+  {
+    key: 'thisQuarter', label: 'This Quarter', icon: CalendarRange,
+    range: () => { const now = new Date(); const qStartMonth = Math.floor(now.getMonth() / 3) * 3; return { from: toDateInput(new Date(now.getFullYear(), qStartMonth, 1)), to: toDateInput(now) }; },
+  },
+  {
+    key: 'thisYear', label: 'This Year', icon: CalendarDays,
+    range: () => { const now = new Date(); return { from: toDateInput(new Date(now.getFullYear(), 0, 1)), to: toDateInput(now) }; },
+  },
+];
+
+// Full date range for an arbitrary "YYYY-MM" (from an <input type="month">) —
+// lets picking, say, "March 2026" filter the whole month, not just this one
+// or last one.
+const monthToRange = (yyyyMm) => {
+  const [year, month] = yyyyMm.split('-').map(Number);
+  const from = new Date(year, month - 1, 1);
+  const to = new Date(year, month, 0);
+  return { from: toDateInput(from), to: toDateInput(to) };
+};
+
+// Reverse of the above — if dateFrom/dateTo happen to span exactly one full
+// calendar month, return its "YYYY-MM" so the month picker can show it as
+// selected; otherwise there's nothing to preselect.
+const rangeToMonth = (from, to) => {
+  if (!from || !to) return '';
+  const f = new Date(`${from}T00:00:00`);
+  const t = new Date(`${to}T00:00:00`);
+  const isFirstOfMonth = f.getDate() === 1;
+  const isLastOfMonth = t.getDate() === new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+  const sameMonth = f.getFullYear() === t.getFullYear() && f.getMonth() === t.getMonth();
+  if (!isFirstOfMonth || !isLastOfMonth || !sameMonth) return '';
+  return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}`;
+};
+
 // Modern re-interpretation of the legacy DSR colour legend (Prospect / NI / Convt,
 // each split Fresh Call vs Follow-up, plus Normal Meeting and Cold Call). The
 // current STS pipeline doesn't carry a separate fresh/follow-up flag for every
@@ -46,6 +128,10 @@ const DSR_BOX_CATEGORIES = {
 
 const FRESH_CALL_IDS = new Set(['DMUPIFC', 'PGIFC', 'NI_FC']);
 const FOLLOW_UP_IDS = new Set(['PGIFU', 'DMUPIFU1', 'DMUPIFU2', 'DMUPIFU3', 'NI_FU']);
+
+// Statuses that increment the "Count" badge next to the update count —
+// DMUPIFC, PGIFC, NI_FC, CNVT_FC and NI (Not Interested).
+const TRACKED_STATUS_COUNT_IDS = new Set(['DMUPIFC', 'PGIFC', 'NI_FC', 'CNVT_FC', 'NI']);
 
 const getDsrBoxCategory = (statusId) => {
   if (statusId === 'C_C') return DSR_BOX_CATEGORIES.cold;
@@ -79,6 +165,7 @@ const DailyReport = () => {
   const [detailsRecord, setDetailsRecord] = useState(null);
   const dateFromRef = useRef(null);
   const dateToRef = useRef(null);
+  const monthPickerRef = useRef(null);
   const fetchIdRef = useRef(0);
 
   useEffect(() => {
@@ -203,6 +290,31 @@ const DailyReport = () => {
 
   const hasActiveFilters = search || dateFrom || dateTo;
 
+  // Highlights the matching chip (if any) purely by comparing the current
+  // dateFrom/dateTo against each preset's computed range — no extra state to
+  // keep in sync, so picking a custom range just leaves no chip highlighted.
+  const activePresetKey = useMemo(() => {
+    const match = DATE_RANGE_PRESETS.find((preset) => {
+      const r = preset.range();
+      return r.from === dateFrom && r.to === dateTo;
+    });
+    return match?.key ?? null;
+  }, [dateFrom, dateTo]);
+
+  const applyPreset = (preset) => {
+    const r = preset.range();
+    setDateFrom(r.from);
+    setDateTo(r.to);
+  };
+
+  const selectedMonth = rangeToMonth(dateFrom, dateTo);
+  const applyMonth = (yyyyMm) => {
+    if (!yyyyMm) return;
+    const r = monthToRange(yyyyMm);
+    setDateFrom(r.from);
+    setDateTo(r.to);
+  };
+
   const clearFilters = () => {
     setSearch('');
     setDateFrom('');
@@ -297,7 +409,7 @@ const DailyReport = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 transition-colors duration-300">
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 transition-colors duration-300 space-y-3">
         <div className="flex flex-col md:flex-row gap-3 md:items-center">
           <div className="relative flex-1 min-w-[220px]">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -343,6 +455,51 @@ const DailyReport = () => {
             </button>
           )}
         </div>
+
+        {/* Quick date-range presets */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100 dark:border-slate-700">
+          <span className="flex items-center gap-1.5 text-xs font-black text-gray-400 dark:text-slate-500 uppercase tracking-wider shrink-0 mr-1">
+            <SlidersHorizontal className="w-3.5 h-3.5" /> Quick Range
+          </span>
+          {DATE_RANGE_PRESETS.map((preset) => {
+            const isActive = activePresetKey === preset.key;
+            return (
+              <button
+                key={preset.key}
+                onClick={() => applyPreset(preset)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                  isActive
+                    ? 'bg-primary-600 border-primary-600 text-white shadow-sm'
+                    : 'bg-gray-50 dark:bg-slate-900/60 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                <preset.icon className="w-3.5 h-3.5" />
+                {preset.label}
+              </button>
+            );
+          })}
+
+          <label
+            onClick={() => openPicker(monthPickerRef)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border cursor-pointer transition-colors ${
+              selectedMonth
+                ? 'bg-primary-600 border-primary-600 text-white shadow-sm'
+                : 'bg-gray-50 dark:bg-slate-900/60 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+            }`}
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            {selectedMonth
+              ? new Date(`${selectedMonth}-01T00:00:00`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+              : 'Pick a Month'}
+            <input
+              ref={monthPickerRef}
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => applyMonth(e.target.value)}
+              className="sr-only"
+            />
+          </label>
+        </div>
       </div>
 
       {/* Legend */}
@@ -383,6 +540,8 @@ const DailyReport = () => {
             const monthShort = d.toLocaleDateString(undefined, { month: 'short' }).toUpperCase();
             const dayNum = d.toLocaleDateString(undefined, { day: '2-digit' });
             const fullDate = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const trackedEntries = dayEntries.filter((entry) => TRACKED_STATUS_COUNT_IDS.has(entry.newStatus));
+            const trackedCompanyNames = trackedEntries.map((entry) => entry.companyName).join(', ');
 
             return (
               <div
@@ -402,10 +561,19 @@ const DailyReport = () => {
                       <p className="text-xs text-gray-400 dark:text-slate-500">{fullDate}</p>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-700 text-xs font-bold text-gray-600 dark:text-slate-300">
-                    <ClipboardList className="w-3.5 h-3.5" />
-                    {dayEntries.length} update{dayEntries.length !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      title={trackedEntries.length > 0 ? trackedCompanyNames : 'No matching updates'}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-500/10 text-xs font-bold text-amber-700 dark:text-amber-400"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Count: {trackedEntries.length}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-700 text-xs font-bold text-gray-600 dark:text-slate-300">
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      {dayEntries.length} update{dayEntries.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">

@@ -168,7 +168,7 @@ const LoginPage = () => {
             }}>
               <img
                 src="/IDeaspromo.png"
-                alt="IDeaspromo Solutions Pvt. Ltd."
+                alt="ERP SYSTEM"
                 style={{
                   height: '52px',
                   width: 'auto',
@@ -466,7 +466,7 @@ const LoginPage = () => {
         {/* Footer */}
         <div style={{ textAlign: 'center', padding: '8px 24px 18px', fontSize: '12px', color: isDark ? '#4a6585' : '#8896a8' }}>
           © {new Date().getFullYear()}{' '}
-          <span style={{ color: '#2b7fff', fontWeight: 600 }}>IDeaspromo Solutions Pvt. Ltd.</span>
+          <span style={{ color: '#2b7fff', fontWeight: 600 }}>ERP SYSTEM</span>
           {' '}All rights reserved.
         </div>
       </div>
