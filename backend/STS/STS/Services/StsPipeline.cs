@@ -1,4 +1,4 @@
-namespace STS.Services
+﻿namespace STS.Services
 {
     // STS call-outcome status codes, matching the legacy STS report's Status dropdown.
     // Selecting one of these logs a call/meeting update against a record — there is no
@@ -19,6 +19,24 @@ namespace STS.Services
         {
             "CNVT", "A_CNVT", "CNVT_PH", "CNVT_FC", "CNVT_FU"
         };
+
+        // Profile ID lifecycle: a freshly created record is a New Contact (NC-),
+        // and the first status update anyone logs against it promotes the same
+        // suffix to an Existing Contact (EC-). Legacy records still carry STS-.
+        public const string NewContactPrefix = "NC-";
+        public const string ExistingContactPrefix = "EC-";
+
+        public static string NewProfileId() =>
+            NewContactPrefix + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
+
+        // Returns the promoted ID for a new-contact record, or null when the ID
+        // needs no change (already EC-, or a legacy STS- id we leave alone).
+        public static string? PromoteProfileId(string? profileId)
+        {
+            if (string.IsNullOrWhiteSpace(profileId)) return null;
+            if (!profileId.StartsWith(NewContactPrefix, StringComparison.OrdinalIgnoreCase)) return null;
+            return ExistingContactPrefix + profileId.Substring(NewContactPrefix.Length);
+        }
 
         public static bool IsValidStatus(string status) => ValidStatuses.Contains(status);
 

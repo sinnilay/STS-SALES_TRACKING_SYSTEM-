@@ -8,11 +8,16 @@ import { settingsService } from '../../../services/settingsService';
 import Input from '../../../components/Input';
 import Button from '../../../components/Button';
 
+const DEFAULT_CITY_BRANCHES = ['GKP', 'LKO', 'DEL'];
+
 const AddEmployee = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [employeeRoles, setEmployeeRoles] = useState([]);
+  // Suggestions only: the three original branches plus every branch already in use,
+  // so the list grows on its own as employees are added elsewhere.
+  const [cityBranches, setCityBranches] = useState(DEFAULT_CITY_BRANCHES);
   const [permissions, setPermissions] = useState({
     addSts: false,
     editSts: false,
@@ -38,6 +43,17 @@ const AddEmployee = () => {
       toast.error("Failed to fetch settings");
     }
   };
+
+  // Branch suggestions are derived from existing employees — a miss here is
+  // harmless, since the field accepts anything typed into it.
+  useEffect(() => {
+    employeeService.getAllEmployees()
+      .then((employees) => {
+        const used = (employees || []).map((e) => e.cityBranch).filter(Boolean);
+        setCityBranches([...new Set([...DEFAULT_CITY_BRANCHES, ...used])]);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleAddDepartment = async () => {
     const name = window.prompt("Enter new Employee Department:");
@@ -210,15 +226,18 @@ const AddEmployee = () => {
 
             <div className="space-y-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">City / Branch <span className="text-red-500">*</span></label>
-              <select
+              {/* Free text with suggestions — the branch list is not fixed, so any new
+                  city can simply be typed in; existing branches are offered as options. */}
+              <input
+                type="text"
+                list="city-branch-options"
+                placeholder="Select or type a branch"
                 {...register('cityBranch', { required: "City/Branch is required" })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 transition-colors"
-              >
-                <option value="">Select Branch</option>
-                <option value="GKP">GKP</option>
-                <option value="LKO">LKO</option>
-                <option value="DEL">DEL</option>
-              </select>
+              />
+              <datalist id="city-branch-options">
+                {cityBranches.map((branch) => <option key={branch} value={branch} />)}
+              </datalist>
               {errors.cityBranch && <p className="text-xs text-red-500 mt-1">{errors.cityBranch.message}</p>}
             </div>
 

@@ -1,9 +1,11 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MimeKit;
+using MimeKit.Utils;
+using Microsoft.AspNetCore.Hosting;
 using STS.Models;
 
 namespace STS.Services
@@ -12,11 +14,68 @@ namespace STS.Services
     {
         private readonly IConfiguration _config;
         private readonly ILogger<EmailService> _logger;
+        private readonly IWebHostEnvironment _env;
 
-        public EmailService(IConfiguration config, ILogger<EmailService> logger)
+        public EmailService(IConfiguration config, ILogger<EmailService> logger, IWebHostEnvironment env)
         {
             _config = config;
             _logger = logger;
+            _env = env;
+        }
+
+        // A company logo is stored as an absolute URL pointing back at this server
+        // (http://localhost:5100/companylogos/... in dev, and anything not publicly
+        // reachable in a self-hosted setup), and no mail client can load that — which is
+        // why the header image arrived broken. When the file is one of ours on disk we
+        // attach it inline and reference it by cid:, which renders everywhere; a logo
+        // hosted somewhere else is still linked by URL.
+        private string BuildCompanyLogoHtml(BodyBuilder bodyBuilder, string? logoUrl, string? companyName)
+        {
+            var name = System.Net.WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(companyName) ? "ERP SYSTEM" : companyName);
+            string? src = null;
+
+            if (!string.IsNullOrWhiteSpace(logoUrl))
+            {
+                src = logoUrl;
+                var localPath = TryResolveLocalLogoPath(logoUrl);
+                if (localPath != null)
+                {
+                    try
+                    {
+                        var resource = bodyBuilder.LinkedResources.Add(localPath);
+                        resource.ContentId = MimeUtils.GenerateMessageId();
+                        src = $"cid:{resource.ContentId}";
+                    }
+                    catch (System.Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Could not embed company logo {path}; falling back to its URL.", localPath);
+                    }
+                }
+            }
+
+            // With no logo to show, a wordmark beats an <img> that renders as a broken
+            // icon — which is what the old hard-coded image host was doing.
+            if (src == null)
+            {
+                return $"<div style='font-size: 20px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;'>{name}</div>";
+            }
+
+            return $"<img src='{System.Net.WebUtility.HtmlEncode(src)}' alt='{name} Logo' style='max-height: 48px; max-width: 180px; object-fit: contain; display: block; margin: 0 auto;' />";
+        }
+
+        // Maps an uploaded-logo URL back to the file this server serves it from,
+        // or null when the URL points at someone else's host.
+        private string? TryResolveLocalLogoPath(string logoUrl)
+        {
+            const string segment = "/companylogos/";
+            var index = logoUrl.IndexOf(segment, System.StringComparison.OrdinalIgnoreCase);
+            if (index < 0) return null;
+
+            var fileName = Path.GetFileName(logoUrl.Substring(index + segment.Length).Split('?')[0]);
+            if (string.IsNullOrWhiteSpace(fileName)) return null;
+
+            var path = Path.Combine(_env.ContentRootPath, "companylogos", fileName);
+            return File.Exists(path) ? path : null;
         }
 
         // Port 465 is implicit TLS; port 25/587 with EnableSsl means STARTTLS.
@@ -31,7 +90,7 @@ namespace STS.Services
             return port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
         }
 
-        public async Task SendWelcomeEmailAsync(string toEmail, string fullName, string password)
+        public async Task SendWelcomeEmailAsync(string toEmail, string fullName, string password, string? companyLogoUrl = null, string? companyName = null)
         {
             try
             {
@@ -47,7 +106,7 @@ namespace STS.Services
 
                 var bodyBuilder = new BodyBuilder();
                 
-                string logoHtml = "<img src='https://i.postimg.cc/SNJ5H9k4/logo.png' alt='ERP SYSTEM Logo' style='max-height: 50px; display: block; margin: 0 auto;' />";
+                string logoHtml = BuildCompanyLogoHtml(bodyBuilder, companyLogoUrl, companyName);
 
                 bodyBuilder.HtmlBody = $@"
                     <div style='font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
@@ -118,7 +177,7 @@ namespace STS.Services
                 message.Subject = "ERP SYSTEM - Email Verification OTP";
 
                 var bodyBuilder = new BodyBuilder();
-                string logoHtml = "<img src='https://i.postimg.cc/SNJ5H9k4/logo.png' alt='ERP SYSTEM Logo' style='max-height: 50px; display: block; margin: 0 auto;' />";
+                string logoHtml = BuildCompanyLogoHtml(bodyBuilder, null, null);
 
                 bodyBuilder.HtmlBody = $@"
                     <div style='font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
@@ -188,7 +247,7 @@ namespace STS.Services
                 message.Subject = $"New 7-Day Free Trial Request — {request.CompanyName}";
 
                 var bodyBuilder = new BodyBuilder();
-                string logoHtml = "<img src='https://i.postimg.cc/SNJ5H9k4/logo.png' alt='ERP SYSTEM Logo' style='max-height: 50px; display: block; margin: 0 auto;' />";
+                string logoHtml = BuildCompanyLogoHtml(bodyBuilder, null, null);
                 string portalUrl = _config["FrontendBaseUrl"] ?? "https://sts.ideaspromotion.com";
                 string approveUrl = $"{portalUrl.TrimEnd('/')}/superadmin/trial-requests";
 
@@ -306,15 +365,10 @@ namespace STS.Services
                 // be populated in a different field order.
                 string phone = new[] { data.Mobile1, data.PhoneNumber, data.Mobile2 }.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "";
 
-                string logoSrc = !string.IsNullOrWhiteSpace(data.TenantCompanyLogoUrl)
-                    ? data.TenantCompanyLogoUrl
-                    : "https://i.postimg.cc/SNJ5H9k4/logo.png";
+                var bodyBuilder = new BodyBuilder();
+                string logoHtml = BuildCompanyLogoHtml(bodyBuilder, data.TenantCompanyLogoUrl, data.TenantCompanyName);
 
-                string logoHtml = $"<img src='{System.Net.WebUtility.HtmlEncode(logoSrc)}' alt='{System.Net.WebUtility.HtmlEncode(data.TenantCompanyName)} Logo' style='max-height: 48px; max-width: 180px; object-fit: contain; display: block; margin: 0 auto;' />";
-
-                var bodyBuilder = new BodyBuilder
-                {
-                    HtmlBody = $@"
+                bodyBuilder.HtmlBody = $@"
                     <div style='font-family: Segoe UI, Arial, sans-serif; color: #333; max-width: 640px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.08);'>
                         <div style='background: linear-gradient(135deg, {statusColor}, #4338ca); color: #fff; padding: 26px 20px; text-align: center;'>
                             {logoHtml}
@@ -361,8 +415,7 @@ namespace STS.Services
                             <p style='margin: 0;'>This is an automated notification, please do not reply.</p>
                         </div>
                     </div>
-                    "
-                };
+                    ";
 
                 message.Body = bodyBuilder.ToMessageBody();
 
@@ -404,7 +457,7 @@ namespace STS.Services
                 message.Subject = $"You're approved! Your 7-Day Free Trial is ready — {request.CompanyName}";
 
                 var bodyBuilder = new BodyBuilder();
-                string logoHtml = "<img src='https://i.postimg.cc/SNJ5H9k4/logo.png' alt='ERP SYSTEM Logo' style='max-height: 50px; display: block; margin: 0 auto;' />";
+                string logoHtml = BuildCompanyLogoHtml(bodyBuilder, null, null);
 
                 string credentialsBlock = !string.IsNullOrWhiteSpace(loginPassword)
                     ? $@"
@@ -476,7 +529,7 @@ namespace STS.Services
                 message.Subject = $"Update on your 7-Day Free Trial request — {request.CompanyName}";
 
                 var bodyBuilder = new BodyBuilder();
-                string logoHtml = "<img src='https://i.postimg.cc/SNJ5H9k4/logo.png' alt='ERP SYSTEM Logo' style='max-height: 50px; display: block; margin: 0 auto;' />";
+                string logoHtml = BuildCompanyLogoHtml(bodyBuilder, null, null);
                 string reason = string.IsNullOrWhiteSpace(request.RejectionReason) ? "Not specified" : request.RejectionReason;
 
                 bodyBuilder.HtmlBody = $@"

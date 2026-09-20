@@ -12,6 +12,13 @@ const FIELD_INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-6
 
 const ADMIN_ACTOR = 'admin';
 
+// An update is logged as the call happens, so the Call/Meeting date can only be
+// today or one of the two days before it — no older backdating, no future dates.
+const CALL_DATE_BACKDATE_DAYS = 2;
+
+const toDateInputValue = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 const initialForm = {
   priority: '',
   callMeetingDate: '',
@@ -104,6 +111,13 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
 
   const setField = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
+  // Recomputed per render so a modal left open overnight still offers the right window.
+  const today = new Date();
+  const callDateMax = toDateInputValue(today);
+  const callDateMin = toDateInputValue(
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() - CALL_DATE_BACKDATE_DAYS)
+  );
+
   const statusIsConverted = isConverted(form.status);
   const statusIsOther = form.status === 'OTHER';
 
@@ -111,6 +125,9 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
     const next = {};
     if (!form.priority) next.priority = 'Required';
     if (!form.callMeetingDate) next.callMeetingDate = 'Required';
+    else if (form.callMeetingDate < callDateMin || form.callMeetingDate > callDateMax) {
+      next.callMeetingDate = `Pick today or the last ${CALL_DATE_BACKDATE_DAYS} days`;
+    }
     if (!form.status) next.status = 'Required';
     if (!form.subject.trim()) next.subject = 'Required';
     if (!form.comment.trim()) next.comment = 'Required';
@@ -180,7 +197,14 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
 
         <div>
           <label className={FIELD_LABEL}>Call / Meeting Date <span className="text-red-500">*</span></label>
-          <input type="date" value={form.callMeetingDate} onChange={setField('callMeetingDate')} className={FIELD_INPUT} />
+          <input
+            type="date"
+            min={callDateMin}
+            max={callDateMax}
+            value={form.callMeetingDate}
+            onChange={setField('callMeetingDate')}
+            className={FIELD_INPUT}
+          />
           {errors.callMeetingDate && <p className="mt-1 text-xs text-red-600">{errors.callMeetingDate}</p>}
         </div>
 

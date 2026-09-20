@@ -32,16 +32,28 @@ const Section = ({ icon: Icon, title, children }) => (
   </div>
 );
 
+// Phone-style fields accept exactly 10 digits, pincode exactly 6 — blank stays allowed
+// on edit, since older records may not carry these values yet.
+const digitsRule = (length, label) => ({
+  pattern: {
+    value: new RegExp(`^[0-9]{${length}}$`),
+    message: `${label} must be exactly ${length} digits`,
+  },
+});
+
+// Keeps typed and pasted non-digits out of the number-only fields.
+const blockNonDigits = (e) => {
+  if (e.data && /\D/.test(e.data)) e.preventDefault();
+};
+
 const buildDefaults = (r) => ({
   companyName: r.companyName || '',
   contactPerson: r.contactPerson || '',
   designation: r.designation || '',
-  ownerName: r.ownerName || '',
   email: r.email || '',
   phoneNumber: r.phoneNumber || '',
   mobile1: r.mobile1 || '',
   mobile2: r.mobile2 || '',
-  fax: r.fax || '',
   website: r.website || '',
   address1: r.address1 || '',
   address2: r.address2 || '',
@@ -93,16 +105,20 @@ const EditStsForm = ({ record, onClose, onSuccess }) => {
         </div>
         <Field label="Contact Person"><Input {...register('contactPerson')} /></Field>
         <Field label="Designation"><Input {...register('designation')} /></Field>
-        <Field label="Owner Name"><Input {...register('ownerName')} /></Field>
         <Field label="Website"><Input {...register('website')} /></Field>
       </Section>
 
       <Section icon={User} title="Contact">
         <Field label="Email"><Input type="email" {...register('email')} /></Field>
-        <Field label="Phone"><Input {...register('phoneNumber')} /></Field>
-        <Field label="Mobile 1"><Input {...register('mobile1')} /></Field>
-        <Field label="Mobile 2"><Input {...register('mobile2')} /></Field>
-        <Field label="Fax"><Input {...register('fax')} /></Field>
+        <Field label="Phone" error={errors.phoneNumber}>
+          <Input inputMode="numeric" maxLength={10} {...register('phoneNumber', digitsRule(10, 'Phone'))} onBeforeInput={blockNonDigits} error={errors.phoneNumber} />
+        </Field>
+        <Field label="Mobile 1" error={errors.mobile1}>
+          <Input inputMode="numeric" maxLength={10} {...register('mobile1', digitsRule(10, 'Mobile 1'))} onBeforeInput={blockNonDigits} error={errors.mobile1} />
+        </Field>
+        <Field label="Mobile 2" error={errors.mobile2}>
+          <Input inputMode="numeric" maxLength={10} {...register('mobile2', digitsRule(10, 'Mobile 2'))} onBeforeInput={blockNonDigits} error={errors.mobile2} />
+        </Field>
       </Section>
 
       <Section icon={MapPin} title="Address">
@@ -113,7 +129,9 @@ const EditStsForm = ({ record, onClose, onSuccess }) => {
         </div>
         <Field label="City / District"><Input {...register('cityDistrict')} /></Field>
         <Field label="State"><Input {...register('state')} /></Field>
-        <Field label="Pincode"><Input {...register('pincode')} /></Field>
+        <Field label="Pincode" error={errors.pincode}>
+          <Input inputMode="numeric" maxLength={6} {...register('pincode', digitsRule(6, 'Pincode'))} onBeforeInput={blockNonDigits} error={errors.pincode} />
+        </Field>
         <Field label="Country"><Input {...register('country')} /></Field>
       </Section>
 

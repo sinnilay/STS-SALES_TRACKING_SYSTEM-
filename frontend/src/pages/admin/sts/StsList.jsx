@@ -103,6 +103,9 @@ const StsList = () => {
       'Business Description': r.businessDescription || '',
       'Opening Comments': r.openingComments || '',
       'Status': r.status || 'New',
+      'Service Taken': r.serviceTaken || '',
+      'Service Price': r.servicePrice != null ? r.servicePrice : '',
+      'Service Date': r.serviceDate ? new Date(r.serviceDate).toLocaleDateString() : '',
       'Created Date': r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '',
       'Last Action Date': r.lastActionDate ? new Date(r.lastActionDate).toLocaleDateString() : '',
       'Next Action Date': r.nextActionDate ? new Date(r.nextActionDate).toLocaleDateString() : '',
@@ -155,6 +158,17 @@ const StsList = () => {
         <span className="text-blue-600 font-medium">
           {row.status || 'New'}
         </span>
+      )
+    },
+    {
+      // Services — filled in from the latest converted status update; N/A until then.
+      header: 'Services',
+      render: (row) => (
+        <div className="text-xs space-y-1">
+          <div><span className="font-semibold text-gray-500">Service Taken:</span> {row.serviceTaken || 'N/A'}</div>
+          <div><span className="font-semibold text-gray-500">Price:</span> {row.servicePrice != null ? row.servicePrice : 'N/A'}</div>
+          <div><span className="font-semibold text-gray-500">Date:</span> {row.serviceDate ? new Date(row.serviceDate).toLocaleDateString() : 'N/A'}</div>
+        </div>
       )
     },
     {

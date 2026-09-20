@@ -15,6 +15,19 @@ import StsDetailsDrawer from './StsDetailsDrawer';
 import ImportStsModal from './ImportStsModal';
 import { getStatusMeta } from '../../../constants/stsPipeline';
 
+// Phone-style fields take exactly 10 digits and pincode exactly 6 — non-digits are
+// blocked as they are typed or pasted, and the length is checked on submit.
+const digitsRule = (length, label) => ({
+  pattern: {
+    value: new RegExp(`^[0-9]{${length}}$`),
+    message: `${label} must be exactly ${length} digits`,
+  },
+});
+
+const blockNonDigits = (e) => {
+  if (e.data && /\D/.test(e.data)) e.preventDefault();
+};
+
 const AddSts = () => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -374,13 +387,29 @@ const AddSts = () => {
               <div className="flex items-center gap-4">
                 <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Phone</label>
                 <div className="w-2/3">
-                  <input type="text" {...register('phoneNumber')} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    onBeforeInput={blockNonDigits}
+                    {...register('phoneNumber', digitsRule(10, 'Phone'))}
+                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm"
+                  />
+                  {errors.phoneNumber && <p className="mt-1 text-xs text-red-600">{errors.phoneNumber.message}</p>}
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Mobile-2</label>
                 <div className="w-2/3">
-                  <input type="text" {...register('mobile2')} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    onBeforeInput={blockNonDigits}
+                    {...register('mobile2', digitsRule(10, 'Mobile-2'))}
+                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm"
+                  />
+                  {errors.mobile2 && <p className="mt-1 text-xs text-red-600">{errors.mobile2.message}</p>}
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -420,13 +449,15 @@ const AddSts = () => {
               <div className="flex items-center gap-4 mt-12">
                 <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Mobile-1 <span className="text-red-500">*</span></label>
                 <div className="w-2/3">
-                  <input type="text" {...register('mobile1', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Fax</label>
-                <div className="w-2/3">
-                  <input type="text" {...register('fax')} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    onBeforeInput={blockNonDigits}
+                    {...register('mobile1', { required: 'Mobile-1 is required', ...digitsRule(10, 'Mobile-1') })}
+                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm"
+                  />
+                  {errors.mobile1 && <p className="mt-1 text-xs text-red-600">{errors.mobile1.message}</p>}
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -455,7 +486,15 @@ const AddSts = () => {
               <div className="flex items-center gap-4">
                 <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Zip Code <span className="text-red-500">*</span></label>
                 <div className="w-2/3">
-                  <input type="text" {...register('pincode', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    onBeforeInput={blockNonDigits}
+                    {...register('pincode', { required: 'Zip code is required', ...digitsRule(6, 'Zip code') })}
+                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm"
+                  />
+                  {errors.pincode && <p className="mt-1 text-xs text-red-600">{errors.pincode.message}</p>}
                 </div>
               </div>
 

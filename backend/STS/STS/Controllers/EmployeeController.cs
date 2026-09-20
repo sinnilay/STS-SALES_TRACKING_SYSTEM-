@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -437,7 +437,24 @@ namespace STS.Controllers
                     {
                         s.MarketingExecutive.Id,
                         s.MarketingExecutive.FullName
-                    } : null
+                    } : null,
+                    // Service taken — read from the most recent converted status update
+                    // logged against this record; all null until the first conversion.
+                    ServiceTaken = _context.DsrEntries
+                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
+                        .OrderByDescending(d => d.CreatedAt)
+                        .Select(d => d.ConvertedFor)
+                        .FirstOrDefault(),
+                    ServicePrice = _context.DsrEntries
+                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
+                        .OrderByDescending(d => d.CreatedAt)
+                        .Select(d => d.ConvertedPrice)
+                        .FirstOrDefault(),
+                    ServiceDate = _context.DsrEntries
+                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
+                        .OrderByDescending(d => d.CreatedAt)
+                        .Select(d => (DateTime?)d.CreatedAt)
+                        .FirstOrDefault()
                 })
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
@@ -517,7 +534,24 @@ namespace STS.Controllers
                     {
                         s.MarketingExecutive.Id,
                         s.MarketingExecutive.FullName
-                    } : null
+                    } : null,
+                    // Service taken — read from the most recent converted status update
+                    // logged against this record; all null until the first conversion.
+                    ServiceTaken = _context.DsrEntries
+                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
+                        .OrderByDescending(d => d.CreatedAt)
+                        .Select(d => d.ConvertedFor)
+                        .FirstOrDefault(),
+                    ServicePrice = _context.DsrEntries
+                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
+                        .OrderByDescending(d => d.CreatedAt)
+                        .Select(d => d.ConvertedPrice)
+                        .FirstOrDefault(),
+                    ServiceDate = _context.DsrEntries
+                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
+                        .OrderByDescending(d => d.CreatedAt)
+                        .Select(d => (DateTime?)d.CreatedAt)
+                        .FirstOrDefault()
                 })
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
@@ -699,6 +733,19 @@ namespace STS.Controllers
                 return BadRequest(new { message = "Please describe the custom status." });
             }
 
+            // First status update on a record promotes its profile ID from a
+            // New Contact (NC-) to an Existing Contact (EC-), keeping the same suffix.
+            // Older DSR lines are restamped so history stays searchable by the new ID.
+            var promotedProfileId = StsPipeline.PromoteProfileId(salesData.CompanyID);
+            if (promotedProfileId != null)
+            {
+                var previousProfileId = salesData.CompanyID;
+                salesData.CompanyID = promotedProfileId;
+                await _context.DsrEntries
+                    .Where(d => d.SalesDataId == salesData.Id && d.CompanyID == previousProfileId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(d => d.CompanyID, promotedProfileId));
+            }
+
             var previousStatus = salesData.Status;
             salesData.Status = request.Status;
             salesData.Priority = request.Priority;
@@ -856,7 +903,7 @@ namespace STS.Controllers
             var salesData = new SalesData
             {
                 TenantCompanyId = companyId,
-                CompanyID = "STS-" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper(),
+                CompanyID = StsPipeline.NewProfileId(),
                 CompanyName = request.CompanyName,
                 ContactPerson = request.ContactPerson,
                 Designation = request.Designation,

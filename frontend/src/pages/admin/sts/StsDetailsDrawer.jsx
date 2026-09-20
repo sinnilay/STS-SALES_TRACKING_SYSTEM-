@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Building2, MapPin, Phone, Mail, Globe, User, Clock, CheckCircle2, UserCircle2, ArrowRight, MessageSquare, Loader2, CalendarClock, Flag, Mail as MailIcon, FileText, Printer, Tag, UserCog, PencilLine } from 'lucide-react';
+import { X, Building2, MapPin, Phone, Mail, Globe, User, Clock, CheckCircle2, UserCircle2, ArrowRight, MessageSquare, Loader2, CalendarClock, Flag, Mail as MailIcon, FileText, Tag, UserCog, PencilLine } from 'lucide-react';
 import { getStatusMeta } from '../../../constants/stsPipeline';
 import Modal from '../../../components/Modal';
 import StatusPipelineModal from './StatusPipelineModal';
@@ -136,6 +136,56 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
             </div>
           </section>
 
+          {/* Company Details — every field captured for this lead, grouped for scannability */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary-500" />
+              Company Details
+            </h3>
+
+            <div className="space-y-5">
+              {/* Lead meta — priority / source / lead by, as quick-scan chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                {salesRecord.priority && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                    <Flag className="w-3 h-3" /> {salesRecord.priority} Priority
+                  </span>
+                )}
+                {salesRecord.source && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20">
+                    <Tag className="w-3 h-3" /> {salesRecord.source}
+                  </span>
+                )}
+                {salesRecord.leadBy && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20">
+                    <UserCog className="w-3 h-3" /> Lead by {salesRecord.leadBy}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DetailCard icon={User} label="Contact Person" value={salesRecord.contactPerson} subValue={salesRecord.designation} />
+                <DetailCard icon={Phone} label="Phone Numbers" value={salesRecord.mobile1 || salesRecord.phoneNumber} subValue={salesRecord.mobile2} />
+                <DetailCard icon={Mail} label="Email Address" value={salesRecord.email} />
+                <DetailCard icon={Globe} label="Website" value={salesRecord.website} />
+                <div className="sm:col-span-2">
+                  <DetailCard
+                    icon={MapPin}
+                    label="Address"
+                    value={[salesRecord.address1, salesRecord.address2].filter(Boolean).join(', ')}
+                    subValue={[salesRecord.cityDistrict, salesRecord.state, salesRecord.pincode, salesRecord.country].filter(Boolean).join(', ')}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <DetailCard icon={FileText} label="Business Description" value={salesRecord.businessDescription} wrap />
+                </div>
+                <div className="sm:col-span-2">
+                  <DetailCard icon={MessageSquare} label="Opening Comments" value={salesRecord.openingComments} wrap />
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* Update History — every status change, and the comment given for it */}
           {fetchHistory && (
             <section>
@@ -223,58 +273,6 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
               )}
             </section>
           )}
-
-          {/* Company Details — every field captured for this lead, grouped for scannability */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-primary-500" />
-              Company Details
-            </h3>
-
-            <div className="space-y-5">
-              {/* Lead meta — priority / source / lead by, as quick-scan chips */}
-              <div className="flex flex-wrap items-center gap-2">
-                {salesRecord.priority && (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
-                    <Flag className="w-3 h-3" /> {salesRecord.priority} Priority
-                  </span>
-                )}
-                {salesRecord.source && (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20">
-                    <Tag className="w-3 h-3" /> {salesRecord.source}
-                  </span>
-                )}
-                {salesRecord.leadBy && (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20">
-                    <UserCog className="w-3 h-3" /> Lead by {salesRecord.leadBy}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <DetailCard icon={User} label="Contact Person" value={salesRecord.contactPerson} subValue={salesRecord.designation} />
-                <DetailCard icon={UserCog} label="Owner Name" value={salesRecord.ownerName} />
-                <DetailCard icon={Phone} label="Phone Numbers" value={salesRecord.mobile1 || salesRecord.phoneNumber} subValue={salesRecord.mobile2} />
-                <DetailCard icon={Printer} label="Fax" value={salesRecord.fax} />
-                <DetailCard icon={Mail} label="Email Address" value={salesRecord.email} />
-                <DetailCard icon={Globe} label="Website" value={salesRecord.website} />
-                <div className="sm:col-span-2">
-                  <DetailCard
-                    icon={MapPin}
-                    label="Address"
-                    value={[salesRecord.address1, salesRecord.address2].filter(Boolean).join(', ')}
-                    subValue={[salesRecord.cityDistrict, salesRecord.state, salesRecord.pincode, salesRecord.country].filter(Boolean).join(', ')}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <DetailCard icon={FileText} label="Business Description" value={salesRecord.businessDescription} wrap />
-                </div>
-                <div className="sm:col-span-2">
-                  <DetailCard icon={MessageSquare} label="Opening Comments" value={salesRecord.openingComments} wrap />
-                </div>
-              </div>
-            </div>
-          </section>
 
           {/* Allocation & Ownership */}
           <section>
