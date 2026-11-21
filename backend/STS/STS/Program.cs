@@ -7,37 +7,55 @@ using STS.Hubs;
 using STS.Services;
 using System.Text;
 using Scalar.AspNetCore;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.ResponseCompression;
+using System.IO.Compression;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// JSON list responses (STS records, reports) compress ~10x; this matters most in production
+// where every byte crosses the internet.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 
-// CORS configuration
-//builder.Services.AddCors(options =>
-//{
-//    options.AddPolicy("AllowFrontend",
-//        policy =>
-//        {
-//            policy.WithOrigins("http://localhost:5173")
-//                  .AllowAnyMethod()
-//                  .AllowAnyHeader()
-//                  .AllowCredentials();
-//        });
-//});
+// CORS: only the configured frontend origins may call the API. Credentials are allowed
+// because the SignalR GPS hub needs them, which rules out a wildcard origin.
+var frontendUrl = (builder.Configuration["FrontendUrl"] ?? "https://stserp.ideaspromotion.com").TrimEnd('/');
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                     ?? new[] { frontendUrl };
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
+    options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.AllowAnyOrigin()
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyMethod()
-                  .AllowAnyHeader();
+                  .AllowAnyHeader()
+                  .AllowCredentials();
         });
 });
+
+// The API sits behind a reverse proxy / IIS in production; trust its forwarded headers
+// so HTTPS redirection and client IPs see the original request.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Database connection
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -45,6 +63,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Authentication Service
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Keeps the IIS app pool from idling out so logins don't hit a ~20s cold start.
+builder.Services.AddHostedService<KeepAliveService>();
 
 // GPS Tracking module — lightweight SignalR hub for live location/presence updates
 builder.Services.AddSignalR();
@@ -138,6 +159,26 @@ using (var scope = app.Services.CreateScope())
             BEGIN
                 ALTER TABLE [Users] ADD [ProfilePicturePath] nvarchar(max) NULL;
             END
+
+            IF OBJECT_ID(N'[EmployeeQualifications]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [EmployeeQualifications] (
+                    [Id] int NOT NULL IDENTITY(1,1) PRIMARY KEY,
+                    [Name] nvarchar(max) NOT NULL,
+                    [CompanyId] int NULL
+                );
+            END
+
+            IF COL_LENGTH('Users', 'BankName') IS NULL ALTER TABLE [Users] ADD [BankName] nvarchar(max) NOT NULL DEFAULT N'';
+            IF COL_LENGTH('Users', 'BankBranch') IS NULL ALTER TABLE [Users] ADD [BankBranch] nvarchar(max) NOT NULL DEFAULT N'';
+            IF COL_LENGTH('Users', 'AccountHolderName') IS NULL ALTER TABLE [Users] ADD [AccountHolderName] nvarchar(max) NOT NULL DEFAULT N'';
+            IF COL_LENGTH('Users', 'AccountNumber') IS NULL ALTER TABLE [Users] ADD [AccountNumber] nvarchar(max) NOT NULL DEFAULT N'';
+            IF COL_LENGTH('Users', 'PanCardNo') IS NULL ALTER TABLE [Users] ADD [PanCardNo] nvarchar(max) NOT NULL DEFAULT N'';
+            IF COL_LENGTH('Users', 'LocalRefName') IS NULL ALTER TABLE [Users] ADD [LocalRefName] nvarchar(max) NOT NULL DEFAULT N'';
+            IF COL_LENGTH('Users', 'LocalRefRelation') IS NULL ALTER TABLE [Users] ADD [LocalRefRelation] nvarchar(max) NOT NULL DEFAULT N'';
+            IF COL_LENGTH('Users', 'LocalRefContact') IS NULL ALTER TABLE [Users] ADD [LocalRefContact] nvarchar(max) NOT NULL DEFAULT N'';
+            IF COL_LENGTH('Users', 'AadhaarDocPath') IS NULL ALTER TABLE [Users] ADD [AadhaarDocPath] nvarchar(max) NULL;
+            IF COL_LENGTH('Users', 'PanDocPath') IS NULL ALTER TABLE [Users] ADD [PanDocPath] nvarchar(max) NULL;
 
             IF NOT EXISTS (
                 SELECT * FROM sys.columns
@@ -284,6 +325,108 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"Database Migration Check Notice: {ex.Message}");
     }
 
+    // The paged STS list filters by tenant and sorts newest-first; this index serves that
+    // directly instead of scanning and sorting every record.
+    try
+    {
+        context.Database.ExecuteSqlRaw(@"
+            IF NOT EXISTS (
+                SELECT * FROM sys.indexes
+                WHERE name = N'IX_SalesRecords_TenantCompanyId_CreatedAt'
+                AND object_id = OBJECT_ID(N'[SalesRecords]')
+            )
+            BEGIN
+                CREATE INDEX [IX_SalesRecords_TenantCompanyId_CreatedAt]
+                    ON [SalesRecords] ([TenantCompanyId], [CreatedAt] DESC, [Id] DESC);
+            END
+        ");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Database Index Check Notice: {ex.Message}");
+    }
+
+    // Extra holders of an STS record beyond AllocatedToId (e.g. Field Sales + Tele Sales).
+    try
+    {
+        context.Database.ExecuteSqlRaw(@"
+            IF OBJECT_ID(N'[StsCoAssignees]', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [StsCoAssignees] (
+                    [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [TenantCompanyId] int NULL,
+                    [SalesDataId] int NOT NULL,
+                    [EmployeeId] int NOT NULL,
+                    [AllocatorComment] nvarchar(max) NULL,
+                    [AssignedAt] datetime2 NOT NULL,
+                    CONSTRAINT [FK_StsCoAssignees_SalesRecords_SalesDataId] FOREIGN KEY ([SalesDataId]) REFERENCES [SalesRecords] ([Id]),
+                    CONSTRAINT [FK_StsCoAssignees_Users_EmployeeId] FOREIGN KEY ([EmployeeId]) REFERENCES [Users] ([Id])
+                );
+                CREATE UNIQUE INDEX [IX_StsCoAssignees_SalesDataId_EmployeeId] ON [StsCoAssignees] ([SalesDataId], [EmployeeId]);
+                CREATE INDEX [IX_StsCoAssignees_EmployeeId_SalesDataId] ON [StsCoAssignees] ([EmployeeId], [SalesDataId]);
+            END
+        ");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Database Co-Assignee Table Notice: {ex.Message}");
+    }
+
+    // Composite indexes behind Employee Analytics (and the DSR / site-visit views). Without them
+    // every per-tenant, per-employee or per-period aggregate scans the wide SalesRecords /
+    // DsrEntries tables, which gets very slow once production data grows. The first run can
+    // take a while on large tables, so it gets a longer timeout than normal queries.
+    var previousTimeout = context.Database.GetCommandTimeout();
+    try
+    {
+        context.Database.SetCommandTimeout(TimeSpan.FromMinutes(10));
+        context.Database.ExecuteSqlRaw(@"
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_DsrEntries_Tenant_Employee_CreatedAt' AND object_id = OBJECT_ID(N'[DsrEntries]'))
+                CREATE INDEX [IX_DsrEntries_Tenant_Employee_CreatedAt]
+                    ON [DsrEntries] ([TenantCompanyId], [EmployeeId], [CreatedAt])
+                    INCLUDE ([SalesDataId], [NewStatus], [ConvertedPrice]);
+
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_DsrEntries_Tenant_CreatedAt' AND object_id = OBJECT_ID(N'[DsrEntries]'))
+                CREATE INDEX [IX_DsrEntries_Tenant_CreatedAt]
+                    ON [DsrEntries] ([TenantCompanyId], [CreatedAt])
+                    INCLUDE ([EmployeeId], [SalesDataId], [NewStatus], [ConvertedPrice]);
+
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_DsrEntries_SalesDataId_EmployeeId' AND object_id = OBJECT_ID(N'[DsrEntries]'))
+                CREATE INDEX [IX_DsrEntries_SalesDataId_EmployeeId]
+                    ON [DsrEntries] ([SalesDataId], [EmployeeId]);
+
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_SalesRecords_Tenant_AllocatedToId' AND object_id = OBJECT_ID(N'[SalesRecords]'))
+                CREATE INDEX [IX_SalesRecords_Tenant_AllocatedToId]
+                    ON [SalesRecords] ([TenantCompanyId], [AllocatedToId]);
+
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_SalesRecords_Tenant_EmployeeId_CreatedAt' AND object_id = OBJECT_ID(N'[SalesRecords]'))
+                CREATE INDEX [IX_SalesRecords_Tenant_EmployeeId_CreatedAt]
+                    ON [SalesRecords] ([TenantCompanyId], [EmployeeId], [CreatedAt]);
+
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_StsCoAssignees_Tenant_EmployeeId' AND object_id = OBJECT_ID(N'[StsCoAssignees]'))
+                CREATE INDEX [IX_StsCoAssignees_Tenant_EmployeeId]
+                    ON [StsCoAssignees] ([TenantCompanyId], [EmployeeId])
+                    INCLUDE ([SalesDataId]);
+
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_SiteImages_Tenant_UploadedBy_CapturedAt' AND object_id = OBJECT_ID(N'[SiteImages]'))
+                CREATE INDEX [IX_SiteImages_Tenant_UploadedBy_CapturedAt]
+                    ON [SiteImages] ([TenantCompanyId], [UploadedById], [CapturedAt]);
+
+            IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_StsAllocationRequests_Tenant_RequestedBy' AND object_id = OBJECT_ID(N'[StsAllocationRequests]'))
+                CREATE INDEX [IX_StsAllocationRequests_Tenant_RequestedBy]
+                    ON [StsAllocationRequests] ([TenantCompanyId], [RequestedById])
+                    INCLUDE ([Status]);
+        ");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Database Analytics Index Notice: {ex.Message}");
+    }
+    finally
+    {
+        context.Database.SetCommandTimeout(previousTimeout);
+    }
+
     if (!context.Users.Any(u => u.Email == "stsadmin@gmail.com"))
     {
         context.Users.Add(new STS.Models.User
@@ -314,11 +457,15 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.MapScalarApiReference();
-}
+app.UseForwardedHeaders();
+app.UseResponseCompression();
+
+// API docs (Scalar at /scalar/v1) stay available in production as well.
+app.MapOpenApi();
+app.MapScalarApiReference();
+
+// The API has no UI of its own — send anyone hitting the root to the frontend.
+app.MapGet("/", () => Results.Redirect(frontendUrl)).ExcludeFromDescription();
 
 app.UseHttpsRedirection();
 
@@ -349,8 +496,7 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/companylogos"
 });
 
-//app.UseCors("AllowFrontend");
-app.UseCors("AllowAll");
+app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();

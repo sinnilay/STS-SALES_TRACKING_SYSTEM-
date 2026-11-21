@@ -7,17 +7,17 @@ const MeetingBoard = ({ icon: Icon, dateLabel, subLabel, count, onPrev, onNext, 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-lg shadow-slate-200/50 dark:shadow-none overflow-hidden transition-colors duration-300">
       {/* Board header / date switcher */}
-      <div className="relative overflow-hidden px-6 py-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-700 flex flex-wrap items-center justify-between gap-4">
+      <div className="relative overflow-hidden px-4 sm:px-6 py-5 sm:py-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-700 flex flex-wrap items-center justify-between gap-4">
         <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 15% 30%, white 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
 
-        <div className="relative z-10 flex items-center gap-4">
+        <div className="relative z-10 flex items-center gap-3 sm:gap-4 min-w-0">
           {Icon && (
             <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 text-white flex items-center justify-center shadow-lg shrink-0">
               <Icon className="w-6 h-6" />
             </div>
           )}
           <div>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               {onPrev && (
                 <button
                   onClick={onPrev}
@@ -27,7 +27,7 @@ const MeetingBoard = ({ icon: Icon, dateLabel, subLabel, count, onPrev, onNext, 
                   <ChevronLeft className="w-4 h-4" />
                 </button>
               )}
-              <h3 className="text-xl font-black text-white tracking-tight">{dateLabel}</h3>
+              <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">{dateLabel}</h3>
               {onNext && (
                 <button
                   onClick={onNext}
@@ -46,13 +46,13 @@ const MeetingBoard = ({ icon: Icon, dateLabel, subLabel, count, onPrev, onNext, 
             )}
           </div>
         </div>
-        {extra && <div className="relative z-10 shrink-0">{extra}</div>}
+        {extra && <div className="relative z-10 max-w-full sm:shrink-0">{extra}</div>}
       </div>
 
       {/* Scrollable content */}
-      <div className="p-5 max-h-[65vh] overflow-y-auto bg-gray-50/40 dark:bg-slate-900/20">
+      <div className="p-3 sm:p-5 max-h-[65vh] overflow-y-auto bg-gray-50/40 dark:bg-slate-900/20">
         {isLoading ? (
-          <div className="py-16 flex justify-center text-gray-400 dark:text-slate-500 text-sm">Loading…</div>
+          <div className="py-10 sm:py-16 flex justify-center text-gray-400 dark:text-slate-500 text-sm">Loading…</div>
         ) : count === 0 ? (
           <div className="py-14 flex flex-col items-center justify-center text-center">
             {EmptyIcon && (

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Mail, KeyRound, Lock, ArrowRight, CheckCircle2, Building2, UploadCloud, Trash2, Image, Sparkles, RefreshCw } from 'lucide-react';
+import { Shield, Mail, KeyRound, Lock, ArrowRight, CheckCircle2, Building2, UploadCloud, Trash2, Image, Sparkles, RefreshCw, Sun, Moon, Palette, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { authService } from '../../services/authService';
 import { settingsService } from '../../services/settingsService';
 import Input from '../../components/Input';
@@ -9,6 +10,7 @@ import Button from '../../components/Button';
 
 const AdminSettings = () => {
   const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('company'); // 'company' | 'security'
 
   // Company State
@@ -349,6 +351,63 @@ const AdminSettings = () => {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Appearance / Theme selection */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <Palette className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-gray-900 dark:text-white">Appearance</h4>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Choose how the portal looks on this device</p>
+              </div>
+            </div>
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { id: 'light', label: 'Light', hint: 'Bright and clean', icon: Sun, preview: 'bg-slate-100', bar: 'bg-white', line: 'bg-slate-300' },
+                { id: 'dark', label: 'Dark', hint: 'Easy on the eyes', icon: Moon, preview: 'bg-slate-900', bar: 'bg-slate-800', line: 'bg-slate-600' },
+              ].map((opt) => {
+                const selected = theme === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setTheme(opt.id)}
+                    aria-pressed={selected}
+                    className={`text-left rounded-2xl border-2 p-3 transition-all focus:outline-none focus:ring-4 focus:ring-primary-500/20 ${
+                      selected
+                        ? 'border-primary-500 bg-primary-50/60 dark:bg-primary-500/10'
+                        : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-500'
+                    }`}
+                  >
+                    <div className={`h-20 rounded-xl ${opt.preview} border border-black/5 p-2.5 flex gap-2`}>
+                      <div className={`w-1/4 rounded-md ${opt.bar}`} />
+                      <div className="flex-1 space-y-1.5">
+                        <div className={`h-2.5 w-2/3 rounded ${opt.line}`} />
+                        <div className={`h-2.5 w-full rounded ${opt.bar}`} />
+                        <div className={`h-2.5 w-4/5 rounded ${opt.bar}`} />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 px-1">
+                      <div className="flex items-center gap-2">
+                        <opt.icon className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                        <div>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{opt.label}</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">{opt.hint}</p>
+                        </div>
+                      </div>
+                      {selected && (
+                        <span className="w-5 h-5 rounded-full bg-primary-600 text-white flex items-center justify-center">
+                          <Check className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

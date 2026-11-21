@@ -6,7 +6,7 @@ using STS.Models;
 namespace STS.Services
 {
     // Shared by AdminController and EmployeeController's "update STS status"
-    // endpoints: whenever anyone logs an update, the company's Admin(s) get
+    // endpoints: whenever anyone logs an update, only the company Admin (Role = "Admin", not "SubAdmin") gets
     // notified by email (via IEmailService), CC'd to whatever the "CC To"
     // field on the update form was set to.
     public static class StsUpdateNotifier

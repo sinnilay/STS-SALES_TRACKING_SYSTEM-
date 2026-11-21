@@ -14,10 +14,12 @@ namespace STS.Data
         public DbSet<EmployeeDepartment> EmployeeDepartments { get; set; }
         public DbSet<EmployeeDesignation> EmployeeDesignations { get; set; }
         public DbSet<EmployeeRole> EmployeeRoles { get; set; }
+        public DbSet<EmployeeQualification> EmployeeQualifications { get; set; }
         public DbSet<TrialRequest> TrialRequests { get; set; }
         public DbSet<DsrEntry> DsrEntries { get; set; }
         public DbSet<SiteImage> SiteImages { get; set; }
         public DbSet<StsAllocationRequest> StsAllocationRequests { get; set; }
+        public DbSet<StsCoAssignee> StsCoAssignees { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -91,6 +93,25 @@ namespace STS.Data
                 .WithMany()
                 .HasForeignKey(r => r.ReviewedById)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<StsCoAssignee>()
+                .HasOne(a => a.SalesData)
+                .WithMany()
+                .HasForeignKey(a => a.SalesDataId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<StsCoAssignee>()
+                .HasOne(a => a.Employee)
+                .WithMany()
+                .HasForeignKey(a => a.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<StsCoAssignee>()
+                .HasIndex(a => new { a.SalesDataId, a.EmployeeId })
+                .IsUnique();
+
+            modelBuilder.Entity<StsCoAssignee>()
+                .HasIndex(a => new { a.EmployeeId, a.SalesDataId });
 
             // SQL Server's datetime2 columns don't store timezone info, so EF Core reads
             // every value back with Kind=Unspecified — even though every DateTime in this

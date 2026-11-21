@@ -72,27 +72,27 @@ const Dashboard = () => {
     <div className="space-y-6">
       
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl p-8 text-white relative overflow-hidden shadow-2xl">
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl p-5 sm:p-8 text-white relative overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full mix-blend-screen filter blur-3xl"></div>
         <div className="relative z-10">
-          <h1 className="text-3xl font-black mb-2">Welcome to the Headquarters, Super Admin.</h1>
-          <p className="text-slate-300 max-w-2xl text-lg">
+          <h1 className="text-2xl sm:text-3xl font-black mb-2">Welcome to the Headquarters, Super Admin.</h1>
+          <p className="text-slate-300 max-w-2xl text-base sm:text-lg">
             Global Property Management, Workspace Subscriptions & Core Control Module. You are currently in the highest clearance level.
           </p>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {statCards.map((stat, idx) => (
-          <div key={idx} className={`bg-white rounded-3xl p-6 shadow-xl border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300`}>
+          <div key={idx} className={`bg-white rounded-3xl p-4 sm:p-6 shadow-xl border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300`}>
             <div className={`absolute -right-4 -top-4 w-24 h-24 bg-gradient-to-br ${stat.color} opacity-10 rounded-full group-hover:scale-150 transition-transform duration-500`}></div>
             <div className="flex justify-between items-start mb-4 relative z-10">
               <div>
-                <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">{stat.title}</p>
-                <h3 className="text-4xl font-black text-slate-800">{stat.value}</h3>
+                <p className="text-[11px] sm:text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">{stat.title}</p>
+                <h3 className="text-2xl sm:text-3xl sm:text-4xl font-black text-slate-800">{stat.value}</h3>
               </div>
-              <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-white shadow-lg ${stat.shadow}`}>
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl shrink-0 bg-gradient-to-br ${stat.color} flex items-center justify-center text-white shadow-lg ${stat.shadow}`}>
                 <stat.icon className="w-6 h-6" />
               </div>
             </div>

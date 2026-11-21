@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   Camera, Mail, Phone, Smartphone, MapPin, Calendar, Briefcase,
-  Building2, GraduationCap, Users, Shield, Pencil, Check, X, BadgeCheck
+  Building2, GraduationCap, Users, Shield, Pencil, Check, X, BadgeCheck, Landmark, CreditCard
 } from 'lucide-react';
 import { profileService } from '../../services/profileService';
 import Spinner from '../../components/Spinner';
@@ -13,6 +13,9 @@ const formatDate = (value) => {
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 };
+
+const digits10 = (label, optional = false) => (v) =>
+  (optional && !v) || /^\d{10}$/.test(v) ? '' : `${label} must be exactly 10 digits`;
 
 const DetailRow = ({ icon: Icon, label, value }) => (
   <div className="flex items-start gap-3 py-3">
@@ -26,22 +29,45 @@ const DetailRow = ({ icon: Icon, label, value }) => (
   </div>
 );
 
-const EditableRow = ({ icon: Icon, label, value, onSave, placeholder, type = 'tel' }) => {
+// Inline-editable row. `kind` picks the control: text (default), tel (digits only, `maxLength`), date, select
+// (`options`) or textarea. `validate` returns an error message or '' ; `upper` uppercases what is typed.
+const EditableRow = ({ icon: Icon, label, value, onSave, placeholder, kind = 'text', options, maxLength, validate, upper, display, required }) => {
+  const toDraft = (v) => (kind === 'date' ? (v ? String(v).slice(0, 10) : '') : (v || ''));
   const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState(value || '');
+  const [draft, setDraft] = useState(toDraft(value));
+  const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => { setDraft(value || ''); }, [value]);
+  useEffect(() => { setDraft(toDraft(value)); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleChange = (raw) => {
+    let v = raw;
+    if (kind === 'tel') v = v.replace(/\D/g, '');
+    if (maxLength) v = v.slice(0, maxLength);
+    if (upper) v = v.toUpperCase();
+    setDraft(v);
+    setError('');
+  };
 
   const handleSave = async () => {
+    const v = draft.trim();
+    if (required && !v) { setError('This field is required'); return; }
+    const problem = validate ? validate(v) : '';
+    if (problem) { setError(problem); return; }
     setIsSaving(true);
     try {
-      await onSave(draft.trim());
+      await onSave(v);
       setIsEditing(false);
+    } catch (e) {
+      setError(e?.response?.data?.message || 'Could not save');
     } finally {
       setIsSaving(false);
     }
   };
+
+  const cancel = () => { setDraft(toDraft(value)); setError(''); setIsEditing(false); };
+  const inputClass = 'flex-1 min-w-0 px-2.5 py-1.5 text-sm border border-primary-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100';
+  const shown = display ? display(value) : value;
 
   return (
     <div className="flex items-start gap-3 py-3 group">
@@ -51,35 +77,46 @@ const EditableRow = ({ icon: Icon, label, value, onSave, placeholder, type = 'te
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">{label}</p>
         {isEditing ? (
-          <div className="flex items-center gap-2 mt-1">
-            <input
-              autoFocus
-              type={type}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={placeholder}
-              className="flex-1 px-2.5 py-1.5 text-sm border border-primary-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100"
-            />
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="p-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-60 transition-colors"
-            >
-              <Check className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => { setDraft(value || ''); setIsEditing(false); }}
-              className="p-1.5 rounded-lg bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <>
+            <div className="flex items-start gap-2 mt-1">
+              {kind === 'select' ? (
+                <select autoFocus value={draft} onChange={(e) => handleChange(e.target.value)} className={inputClass}>
+                  <option value="">Select…</option>
+                  {options.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : kind === 'textarea' ? (
+                <textarea autoFocus rows={2} value={draft} onChange={(e) => handleChange(e.target.value)} placeholder={placeholder} className={inputClass} />
+              ) : (
+                <input
+                  autoFocus
+                  type={kind === 'date' ? 'date' : 'text'}
+                  inputMode={kind === 'tel' ? 'numeric' : undefined}
+                  maxLength={maxLength}
+                  max={kind === 'date' ? new Date().toISOString().slice(0, 10) : undefined}
+                  value={draft}
+                  onChange={(e) => handleChange(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') cancel(); }}
+                  placeholder={placeholder}
+                  className={inputClass}
+                />
+              )}
+              <button onClick={handleSave} disabled={isSaving} className="p-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-60 transition-colors" title="Save">
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={cancel} className="p-1.5 rounded-lg bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors" title="Cancel">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+          </>
         ) : (
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{value || <span className="italic text-gray-400 dark:text-slate-500">Not added</span>}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-slate-100 break-words min-w-0">
+              {shown || <span className="italic text-gray-400 dark:text-slate-500">Not added</span>}
+            </p>
             <button
               onClick={() => setIsEditing(true)}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20"
+              className="sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 shrink-0"
               title={value ? 'Edit' : 'Add'}
             >
               <Pencil className="w-3.5 h-3.5" />
@@ -128,7 +165,6 @@ const SalesProfile = () => {
       setProfile((prev) => ({ ...prev, [field]: val }));
       toast.success('Profile updated');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to update');
       throw error;
     }
   };
@@ -158,7 +194,7 @@ const SalesProfile = () => {
     }
   };
 
-  if (isLoading) return <div className="py-16 flex justify-center"><Spinner /></div>;
+  if (isLoading) return <div className="py-10 sm:py-16 flex justify-center"><Spinner /></div>;
   if (!profile) return null;
 
   const initials = (profile.fullName || profile.email || '?')
@@ -174,13 +210,13 @@ const SalesProfile = () => {
       {/* Header / Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 shadow-lg">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
-        <div className="relative z-10 px-8 py-10 flex flex-col sm:flex-row items-center sm:items-end gap-6">
+        <div className="relative z-10 px-4 sm:px-8 py-10 flex flex-col sm:flex-row items-center sm:items-end gap-6">
           <div className="relative shrink-0">
             <div className="w-28 h-28 rounded-2xl bg-white/10 backdrop-blur-sm border-4 border-white/30 shadow-xl overflow-hidden flex items-center justify-center">
               {profile.profilePictureUrl ? (
                 <img src={profile.profilePictureUrl} alt={profile.fullName} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-3xl font-black text-white">{initials}</span>
+                <span className="text-2xl sm:text-3xl font-black text-white">{initials}</span>
               )}
             </div>
             <button
@@ -219,9 +255,9 @@ const SalesProfile = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title="Contact Information" icon={Phone}>
-          <EditableRow icon={Phone} label="Phone No." value={profile.phoneNumber} placeholder="Landline number" onSave={handleFieldSave('phoneNumber')} />
-          <EditableRow icon={Smartphone} label="Mobile No." value={profile.mobileNo} placeholder="Primary mobile number" onSave={handleFieldSave('mobileNo')} />
-          <EditableRow icon={Smartphone} label="Alternate Mobile No." value={profile.alternateMobileNo} placeholder="Alternate mobile number" onSave={handleFieldSave('alternateMobileNo')} />
+          <EditableRow icon={Phone} label="Phone No." kind="tel" maxLength={10} value={profile.phoneNumber} placeholder="10-digit number" validate={digits10('Phone number', true)} onSave={handleFieldSave('phoneNumber')} />
+          <EditableRow icon={Smartphone} label="Mobile No." kind="tel" maxLength={10} required value={profile.mobileNo} placeholder="Primary mobile number" validate={digits10('Mobile number')} onSave={handleFieldSave('mobileNo')} />
+          <EditableRow icon={Smartphone} label="Alternate Mobile No." kind="tel" maxLength={10} value={profile.alternateMobileNo} placeholder="Alternate mobile number" validate={digits10('Alternate mobile number', true)} onSave={handleFieldSave('alternateMobileNo')} />
         </SectionCard>
 
         <SectionCard title="Employment Details" icon={Briefcase}>
@@ -233,16 +269,24 @@ const SalesProfile = () => {
         </SectionCard>
 
         <SectionCard title="Personal Information" icon={Users}>
-          <DetailRow icon={Users} label="Father's Name" value={profile.fathersName} />
-          <DetailRow icon={Calendar} label="Date of Birth" value={formatDate(profile.dateOfBirth)} />
-          <DetailRow icon={Shield} label="Sex" value={profile.sex} />
-          <DetailRow icon={GraduationCap} label="Qualification" value={profile.qualification} />
+          <EditableRow icon={Users} label="Father's Name" required value={profile.fathersName} placeholder="Father's name" onSave={handleFieldSave('fathersName')} />
+          <EditableRow icon={Calendar} label="Date of Birth" kind="date" required value={profile.dateOfBirth} display={(v) => (v ? formatDate(v) : '')} onSave={handleFieldSave('dateOfBirth')} />
+          <EditableRow icon={Shield} label="Sex" kind="select" options={['Male', 'Female', 'Other']} required value={profile.sex} onSave={handleFieldSave('sex')} />
+          <EditableRow icon={GraduationCap} label="Qualification" required value={profile.qualification} placeholder="e.g. Graduate" onSave={handleFieldSave('qualification')} />
         </SectionCard>
 
         <SectionCard title="Address" icon={MapPin}>
-          <EditableRow icon={MapPin} label="Local Address" value={profile.localAddress} placeholder="Current residential address" type="text" onSave={handleFieldSave('localAddress')} />
-          <DetailRow icon={MapPin} label="Permanent Address" value={profile.permanentAddress} />
-          <DetailRow icon={MapPin} label="Zip Code" value={profile.zipCode} />
+          <EditableRow icon={MapPin} label="Local Address" kind="textarea" value={profile.localAddress} placeholder="Current residential address" onSave={handleFieldSave('localAddress')} />
+          <EditableRow icon={MapPin} label="Permanent Address" kind="textarea" required value={profile.permanentAddress} placeholder="Permanent residential address" onSave={handleFieldSave('permanentAddress')} />
+          <EditableRow icon={MapPin} label="Zip Code" required maxLength={12} value={profile.zipCode} placeholder="e.g. 226010" onSave={handleFieldSave('zipCode')} />
+        </SectionCard>
+
+        <SectionCard title="Bank Information" icon={Landmark}>
+          <EditableRow icon={Landmark} label="Bank Name" value={profile.bankName} placeholder="Bank name" onSave={handleFieldSave('bankName')} />
+          <EditableRow icon={MapPin} label="Branch" value={profile.bankBranch} placeholder="Branch" onSave={handleFieldSave('bankBranch')} />
+          <EditableRow icon={Users} label="A/c Holder Name" value={profile.accountHolderName} placeholder="Account holder name" onSave={handleFieldSave('accountHolderName')} />
+          <EditableRow icon={CreditCard} label="Account Number" kind="tel" maxLength={20} value={profile.accountNumber} placeholder="6–20 digits" validate={(v) => (!v || /^\d{6,20}$/.test(v) ? '' : 'Enter a valid account number (6–20 digits)')} onSave={handleFieldSave('accountNumber')} />
+          <EditableRow icon={CreditCard} label="Pan Card No." upper maxLength={10} value={profile.panCardNo} placeholder="ABCDE1234F" validate={(v) => (!v || /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v) ? '' : 'Invalid PAN format (e.g. ABCDE1234F)')} onSave={handleFieldSave('panCardNo')} />
         </SectionCard>
       </div>
     </div>

@@ -7,3 +7,55 @@
     @apply bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-slate-100 font-sans antialiased transition-colors duration-300;
   }
 }
+
+/* Mobile safety net: never let content force horizontal page scroll,
+   and keep form controls at 16px so iOS doesn't zoom on focus. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+/* Phones: scale the whole rem-based UI down slightly so it feels like a native app, not a zoomed desktop page. */
+@media (max-width: 639px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+/* iOS Safari zooms into inputs below 16px, so only iOS needs the larger control text. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 639px) {
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+}
+
+/* Dark theme: tell the browser the page is dark so the date/time picker icons and the native calendar
+   popup are drawn in light colours (the default black icon disappears on dark inputs). */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark input[type='date']::-webkit-calendar-picker-indicator,
+html.dark input[type='datetime-local']::-webkit-calendar-picker-indicator,
+html.dark input[type='month']::-webkit-calendar-picker-indicator,
+html.dark input[type='time']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+@layer utilities {
+  /* Sideways-scrolling chip rows (e.g. analytics period picker) without a visible scrollbar. */
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}

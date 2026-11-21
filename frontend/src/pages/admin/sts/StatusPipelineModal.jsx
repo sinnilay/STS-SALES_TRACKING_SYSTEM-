@@ -33,6 +33,14 @@ const initialForm = {
   actingAs: ADMIN_ACTOR,
 };
 
+// First name for the Subject line, skipping honorifics so "MR SANJAY" gives "SANJAY".
+const TITLE_WORDS = new Set(['mr', 'mrs', 'ms', 'miss', 'dr', 'shri', 'smt', 'sri', 'er', 'prof']);
+const firstNameOf = (fullName) => {
+  const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
+  const word = parts.find((w) => !TITLE_WORDS.has(w.replace(/\./g, '').toLowerCase())) || parts[0];
+  return word || '';
+};
+
 // Logs a new STS update for a record — Priority, Call/Meeting Date, Status,
 // Next Call/Meeting Date, CC To, Subject and Comments — mirroring the STS
 // report's update form. Every submission is saved as its own history entry;
@@ -62,7 +70,7 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
   }, []);
 
   // System-generated Subject according to login role and status:
-  // - Field Sales: "Field sales Sales : <Name> [ <Company> <STS ID> <City> ] Status: <Code> (<Label>)"
+  // - Field Sales: "Field Sales: <Name> [ <Company> <STS ID> <City> ] Status: <Code> (<Label>)"
   // - Tele Sales: "Telesales: <Name> [ <Company> <STS ID> <City> ] Status: <Code> (<Label>)"
   // - Admin: "Admin: <Name> [ <Company> <STS ID> <City> ] Status: <Code> (<Label>)"
   useEffect(() => {
@@ -70,14 +78,14 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
 
     if (effectiveIsAdmin) {
       if (form.actingAs === ADMIN_ACTOR) {
-        const adminName = myProfile?.fullName?.split(' ')[0] || user?.fullName?.split(' ')[0] || 'Admin';
+        const adminName = firstNameOf(myProfile?.fullName) || firstNameOf(user?.fullName) || 'Admin';
         prefix = `Admin: ${adminName}`;
       } else {
         const actingEmployee = employees.find((e) => String(e.id) === String(form.actingAs));
-        const empName = actingEmployee?.fullName?.split(' ')[0] || 'Employee';
+        const empName = firstNameOf(actingEmployee?.fullName) || 'Employee';
         const role = actingEmployee?.employeeRole || actingEmployee?.designation || '';
         if (role === 'Field Sales') {
-          prefix = `Field sales Sales : ${empName}`;
+          prefix = `Field Sales: ${empName}`;
         } else if (role === 'Tele Sales') {
           prefix = `Telesales: ${empName}`;
         } else {
@@ -85,13 +93,13 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
         }
       }
     } else {
-      const myName = myProfile?.fullName?.split(' ')[0] || user?.fullName?.split(' ')[0] || 'Employee';
+      const myName = firstNameOf(myProfile?.fullName) || firstNameOf(user?.fullName) || 'Employee';
       const role = myProfile?.employeeRole || myProfile?.designation || '';
       if (role === 'Field Sales') {
-        prefix = `Field sales Sales : ${myName}`;
+        prefix = `Field Sales: ${myName}`;
       } else if (role === 'Tele Sales') {
         prefix = `Telesales: ${myName}`;
-      } else if (myProfile?.role === 'Admin' || user?.role === 'Admin') {
+      } else if (myProfile?.role === 'Admin' || myProfile?.role === 'SubAdmin' || user?.role === 'Admin') {
         prefix = `Admin: ${myName}`;
       } else {
         prefix = `${role || 'Sales'}: ${myName}`;
@@ -196,19 +204,6 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
         </div>
 
         <div>
-          <label className={FIELD_LABEL}>Call / Meeting Date <span className="text-red-500">*</span></label>
-          <input
-            type="date"
-            min={callDateMin}
-            max={callDateMax}
-            value={form.callMeetingDate}
-            onChange={setField('callMeetingDate')}
-            className={FIELD_INPUT}
-          />
-          {errors.callMeetingDate && <p className="mt-1 text-xs text-red-600">{errors.callMeetingDate}</p>}
-        </div>
-
-        <div className="sm:col-span-2">
           <label className={FIELD_LABEL}>Status <span className="text-red-500">*</span></label>
           <select value={form.status} onChange={setField('status')} className={FIELD_INPUT}>
             <option value="">Select Status</option>
@@ -262,6 +257,24 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
           </>
         )}
 
+        <div>
+          <label className={FIELD_LABEL}>Call / Meeting Date <span className="text-red-500">*</span></label>
+          <input
+            type="date"
+            min={callDateMin}
+            max={callDateMax}
+            value={form.callMeetingDate}
+            onChange={setField('callMeetingDate')}
+            className={FIELD_INPUT}
+          />
+          {errors.callMeetingDate && <p className="mt-1 text-xs text-red-600">{errors.callMeetingDate}</p>}
+        </div>
+
+        <div>
+          <label className={FIELD_LABEL}>Next Call / Meeting Date</label>
+          <input type="date" value={form.nextCallMeetingDate} onChange={setField('nextCallMeetingDate')} className={FIELD_INPUT} />
+        </div>
+
         {effectiveIsAdmin && (
           <div className="sm:col-span-2">
             <label className={FIELD_LABEL}>Log This Update As</label>
@@ -274,12 +287,7 @@ const StatusPipelineModal = ({ salesRecord, onClose, onSuccess, onUpdateStatus, 
           </div>
         )}
 
-        <div>
-          <label className={FIELD_LABEL}>Next Call / Meeting Date</label>
-          <input type="date" value={form.nextCallMeetingDate} onChange={setField('nextCallMeetingDate')} className={FIELD_INPUT} />
-        </div>
-
-        <div>
+        <div className="sm:col-span-2">
           <label className={FIELD_LABEL}>CC To</label>
           <input
             type="text"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, CheckCircle, XCircle, Edit, KeyRound, Shield } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Edit, KeyRound, Shield, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { employeeService } from '../../../services/employeeService';
 import { settingsService } from '../../../services/settingsService';
@@ -71,6 +71,18 @@ const EmployeeList = () => {
       fetchEmployees(); // Refresh list
     } catch (error) {
       toast.error(error.response?.data?.message || `Failed to ${action} employee`);
+    }
+  };
+
+  const handleDeleteEmployee = async (row) => {
+    if (!window.confirm(`Permanently delete ${row.fullName || row.email}? This cannot be undone.`)) return;
+
+    try {
+      await employeeService.deleteEmployee(row.id);
+      toast.success('Employee deleted successfully');
+      fetchEmployees();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete employee');
     }
   };
 
@@ -154,7 +166,7 @@ const EmployeeList = () => {
     { header: 'ID', accessor: 'id' },
     { header: 'Name', accessor: 'fullName' },
     { header: 'Email', accessor: 'email' },
-    { header: 'Phone', accessor: 'phoneNumber' },
+    { header: 'Mobile', accessor: 'mobileNo', render: (row) => row.mobileNo || row.phoneNumber },
     { header: 'Employee Dept', accessor: 'employeeDept' },
     { header: 'Employee Role', accessor: 'employeeRole' },
     { header: 'Designation', accessor: 'designation' },
@@ -245,7 +257,7 @@ const EmployeeList = () => {
             data={filteredEmployees}
             onRowClick={openEmployeeDetails}
             renderActions={(row) => (
-              <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-end gap-2 min-w-max [&>button]:shrink-0 [&_svg]:shrink-0 [&_svg]:!w-5 [&_svg]:!h-5" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => {
                     setSelectedEmployeeForEdit(row);
@@ -284,6 +296,13 @@ const EmployeeList = () => {
                   title={row.isActive ? "Disable Employee" : "Enable Employee"}
                 >
                   {row.isActive ? <XCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+                </button>
+                <button
+                  onClick={() => handleDeleteEmployee(row)}
+                  className="p-1.5 rounded-lg transition-colors text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                  title="Delete Employee"
+                >
+                  <Trash2 className="w-5 h-5" />
                 </button>
               </div>
             )}

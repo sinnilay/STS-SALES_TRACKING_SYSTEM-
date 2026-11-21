@@ -6,6 +6,7 @@ using STS.Data;
 using STS.Filters;
 using STS.Models;
 using STS.Services;
+using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Linq;
 
@@ -86,6 +87,7 @@ namespace STS.Controllers
                     u.EmployeeDept,
                     u.EmployeeRole,
                     u.Designation,
+                    u.CityBranch,
                     u.IsActive
                 })
                 .ToListAsync();
@@ -112,8 +114,10 @@ namespace STS.Controllers
             var salesData = await _context.SalesRecords.FirstOrDefaultAsync(s => s.Id == id && s.TenantCompanyId == companyId);
             if (salesData == null) return NotFound(new { message = "Sales record not found." });
 
-            // Tele Sales can only hand off records that are currently their own.
-            if (salesData.AllocatedToId != userId)
+            var ownCoAssignment = salesData.AllocatedToId == userId
+                ? null
+                : await _context.StsCoAssignees.FirstOrDefaultAsync(a => a.SalesDataId == id && a.EmployeeId == userId);
+            if (salesData.AllocatedToId != userId && ownCoAssignment == null)
             {
                 return Forbid();
             }
@@ -125,23 +129,19 @@ namespace STS.Controllers
                 return BadRequest(new { message = "Records can only be allotted to a Field Sales employee." });
             }
 
-            // Remember the Tele Sales owner permanently (separate from AllocatedToId, which is
-            // about to move to the Field Sales employee) so this record keeps showing up in
-            // their STS Report — and so they can still view it — after the handoff.
-            salesData.TeleExecutiveId = userId;
-            salesData.AllocatedToId = targetEmployee.Id;
+            var targetCoAssignment = await _context.StsCoAssignees
+                .FirstOrDefaultAsync(a => a.SalesDataId == id && a.EmployeeId == targetEmployee.Id);
+            ApplyFieldSalesAllotment(salesData, userId, targetEmployee.Id, companyId, ownCoAssignment, targetCoAssignment);
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Record allotted to Field Sales successfully." });
         }
 
-        // Field Sales stamps a record with "Meeting Scheduled" from their own assigned list —
-        // that timestamp is what drives the Current/Past Meetings boards, keyed off the date
-        // this button was clicked rather than the record's own creation/last-action date.
-        private static readonly string[] AllowedMeetingModes = { "Online", "Offline" };
-
-        [HttpPut("sales/{id:int}/schedule-meeting")]
-        public async Task<IActionResult> ScheduleMeeting(int id, [FromBody] ScheduleMeetingRequest request)
+        // Bulk version of AllocateToFieldSales: a Tele Sales employee hands many of their own
+        // records to one Field Sales executive at once. Records they don't currently hold
+        // (directly or as a co-assignee) are skipped rather than failing the whole batch.
+        [HttpPut("sales/allocate-bulk")]
+        public async Task<IActionResult> BulkAllocateToFieldSales([FromBody] BulkAllocateSalesDataRequest request)
         {
             var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdString, out int userId))
@@ -150,32 +150,91 @@ namespace STS.Controllers
             }
 
             var caller = await _context.Users.FindAsync(userId);
-            if (caller == null || (caller.EmployeeRole != "Field Sales" && caller.EmployeeRole != "Tele Sales"))
+            if (caller == null || caller.EmployeeRole != "Tele Sales")
             {
                 return Forbid();
             }
 
-            if (!AllowedMeetingModes.Contains(request.MeetingMode))
-            {
-                return BadRequest(new { message = "Meeting mode must be Online or Offline." });
-            }
+            var ids = (request.SalesIds ?? new List<int>()).Distinct().ToList();
+            if (ids.Count == 0) return BadRequest(new { message = "Select at least one record." });
 
             int companyId = GetCompanyId();
-            var salesData = await _context.SalesRecords.FirstOrDefaultAsync(s => s.Id == id && s.TenantCompanyId == companyId);
-            if (salesData == null) return NotFound(new { message = "Sales record not found." });
-
-            if (salesData.AllocatedToId != userId)
+            var targetEmployee = await _context.Users.FirstOrDefaultAsync(u => u.Id == request.EmployeeId && u.CompanyId == companyId && u.IsActive);
+            if (targetEmployee == null) return BadRequest(new { message = "Invalid employee." });
+            if (targetEmployee.EmployeeRole != "Field Sales")
             {
-                return Forbid();
+                return BadRequest(new { message = "Records can only be allotted to a Field Sales employee." });
             }
 
-            salesData.MeetingScheduledAt = DateTime.UtcNow;
-            salesData.MeetingMode = request.MeetingMode;
+            var records = await _context.SalesRecords
+                .Where(s => ids.Contains(s.Id) && s.TenantCompanyId == companyId)
+                .ToListAsync();
+            // Co-assignments of the caller and of the target on these records, fetched once.
+            var coAssignments = await _context.StsCoAssignees
+                .Where(a => ids.Contains(a.SalesDataId) && (a.EmployeeId == userId || a.EmployeeId == targetEmployee.Id))
+                .ToListAsync();
+
+            int allotted = 0;
+            foreach (var salesData in records)
+            {
+                var own = coAssignments.FirstOrDefault(a => a.SalesDataId == salesData.Id && a.EmployeeId == userId);
+                if (salesData.AllocatedToId != userId && own == null) continue;
+                var targetCo = coAssignments.FirstOrDefault(a => a.SalesDataId == salesData.Id && a.EmployeeId == targetEmployee.Id);
+                ApplyFieldSalesAllotment(salesData, userId, targetEmployee.Id, companyId, own, targetCo);
+                allotted++;
+            }
+
+            if (allotted == 0)
+            {
+                return BadRequest(new { message = "None of the selected records are currently held by you." });
+            }
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Meeting scheduled.", meetingScheduledAt = salesData.MeetingScheduledAt, meetingMode = salesData.MeetingMode });
+            int skipped = ids.Count - allotted;
+            return Ok(new
+            {
+                allotted,
+                skipped,
+                message = skipped > 0
+                    ? $"{allotted} record(s) allotted to {targetEmployee.FullName}; {skipped} skipped (not held by you)."
+                    : $"{allotted} record(s) allotted to {targetEmployee.FullName}."
+            });
         }
 
+        // Moves one record the caller holds (directly, or via `ownCoAssignment`) to a Field Sales
+        // employee. Caller has already verified ownership and the target; nothing is saved here.
+        private void ApplyFieldSalesAllotment(SalesData salesData, int userId, int targetEmployeeId, int companyId,
+            StsCoAssignee? ownCoAssignment, StsCoAssignee? targetCoAssignment)
+        {
+            // Remember the Tele Sales owner permanently (separate from AllocatedToId, which is
+            // about to move to the Field Sales employee) so this record keeps showing up in
+            // their STS Report — and so they can still view it — after the handoff.
+            salesData.TeleExecutiveId = userId;
+            if (salesData.AllocatedToId == userId)
+            {
+                salesData.AllocatedToId = targetEmployeeId;
+                if (targetCoAssignment != null) _context.StsCoAssignees.Remove(targetCoAssignment);
+            }
+            else
+            {
+                // A co-assignee hands over only their own share; the primary holder keeps theirs.
+                _context.StsCoAssignees.Remove(ownCoAssignment!);
+                if (salesData.AllocatedToId != targetEmployeeId && targetCoAssignment == null)
+                {
+                    _context.StsCoAssignees.Add(new StsCoAssignee
+                    {
+                        TenantCompanyId = companyId,
+                        SalesDataId = salesData.Id,
+                        EmployeeId = targetEmployeeId,
+                        AssignedAt = DateTime.UtcNow
+                    });
+                }
+            }
+        }
+
+        // Field Sales stamps a record with "Meeting Scheduled" from their own assigned list —
+        // that timestamp is what drives the Current/Past Meetings boards, keyed off the date
+        // this button was clicked rather than the record's own creation/last-action date.
         private string? BuildSiteImageUrl(string fileName)
         {
             if (string.IsNullOrEmpty(fileName)) return null;
@@ -195,7 +254,8 @@ namespace STS.Controllers
             var salesData = await _context.SalesRecords.FirstOrDefaultAsync(s => s.Id == id && s.TenantCompanyId == companyId);
             if (salesData == null) return NotFound(new { message = "Sales record not found." });
 
-            if (salesData.AllocatedToId != userId && salesData.EmployeeId != userId && salesData.TeleExecutiveId != userId)
+            if (salesData.AllocatedToId != userId && salesData.EmployeeId != userId && salesData.TeleExecutiveId != userId
+                && !await StsCoAssignments.IsCoAssigneeAsync(_context, id, userId))
             {
                 return Forbid();
             }
@@ -236,7 +296,7 @@ namespace STS.Controllers
             var salesData = await _context.SalesRecords.FirstOrDefaultAsync(s => s.Id == id && s.TenantCompanyId == companyId);
             if (salesData == null) return NotFound(new { message = "Sales record not found." });
 
-            if (salesData.AllocatedToId != userId)
+            if (salesData.AllocatedToId != userId && !await StsCoAssignments.IsCoAssigneeAsync(_context, id, userId))
             {
                 return Forbid();
             }
@@ -380,86 +440,8 @@ namespace STS.Controllers
             }
 
             int companyId = GetCompanyId();
-
-            var sales = await _context.SalesRecords
-                .Where(s => s.AllocatedToId == userId && s.TenantCompanyId == companyId)
-                .Select(s => new
-                {
-                    s.Id,
-                    s.CompanyID,
-                    s.CompanyName,
-                    s.CityDistrict,
-                    s.Status,
-                    s.CreatedAt,
-                    s.LastActionDate,
-                    s.MeetingScheduledAt,
-                    s.MeetingMode,
-                    s.NextActionDate,
-                    s.AllocatorComment,
-                    s.ContactPerson,
-                    s.Designation,
-                    s.CompanyAddress,
-                    s.Address1,
-                    s.Address2,
-                    s.PhoneNumber,
-                    s.Mobile1,
-                    s.Mobile2,
-                    s.Fax,
-                    s.Website,
-                    s.Email,
-                    s.OwnerName,
-                    s.Pincode,
-                    s.State,
-                    s.Country,
-                    s.LeadBy,
-                    s.BusinessDescription,
-                    s.OpeningComments,
-                    s.Priority,
-                    Employee = s.Employee != null ? new
-                    {
-                        s.Employee.FullName,
-                        s.Employee.Email,
-                        s.Employee.Department
-                    } : null,
-                    AllocatedTo = s.AllocatedTo != null ? new
-                    {
-                        s.AllocatedTo.Id,
-                        s.AllocatedTo.FullName,
-                        s.AllocatedTo.Email,
-                        s.AllocatedTo.Department
-                    } : null,
-                    TeleExecutive = s.TeleExecutive != null ? new
-                    {
-                        s.TeleExecutive.Id,
-                        s.TeleExecutive.FullName
-                    } : null,
-                    MarketingExecutive = s.MarketingExecutive != null ? new
-                    {
-                        s.MarketingExecutive.Id,
-                        s.MarketingExecutive.FullName
-                    } : null,
-                    // Service taken — read from the most recent converted status update
-                    // logged against this record; all null until the first conversion.
-                    ServiceTaken = _context.DsrEntries
-                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
-                        .OrderByDescending(d => d.CreatedAt)
-                        .Select(d => d.ConvertedFor)
-                        .FirstOrDefault(),
-                    ServicePrice = _context.DsrEntries
-                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
-                        .OrderByDescending(d => d.CreatedAt)
-                        .Select(d => d.ConvertedPrice)
-                        .FirstOrDefault(),
-                    ServiceDate = _context.DsrEntries
-                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
-                        .OrderByDescending(d => d.CreatedAt)
-                        .Select(d => (DateTime?)d.CreatedAt)
-                        .FirstOrDefault()
-                })
-                .OrderByDescending(s => s.CreatedAt)
-                .ToListAsync();
-
-            return Ok(sales);
+            return Ok(await LoadSalesListAsync(companyId, s => s.TenantCompanyId == companyId
+                && (s.AllocatedToId == userId || _context.StsCoAssignees.Any(a => a.SalesDataId == s.Id && a.EmployeeId == userId))));
         }
 
         // The full report for a Tele Sales employee: everything they created themselves,
@@ -476,16 +458,31 @@ namespace STS.Controllers
                 return Unauthorized(new { message = "Invalid user claims." });
             }
 
+            // Only records whose status has actually been updated belong on the report —
+            // untouched ones (still "New", or the legacy "Assigned"/blank) stay in
+            // "My STS Records" until someone logs a status against them.
             int companyId = GetCompanyId();
+            return Ok(await LoadSalesListAsync(companyId,
+                s => s.TenantCompanyId == companyId && (s.EmployeeId == userId || s.AllocatedToId == userId || s.TeleExecutiveId == userId
+                    || _context.StsCoAssignees.Any(a => a.SalesDataId == s.Id && a.EmployeeId == userId))
+                    && s.Status != null && s.Status != "" && s.Status != "New" && s.Status != "Assigned"));
+        }
 
-            var sales = await _context.SalesRecords
-                .Where(s => s.TenantCompanyId == companyId && (s.EmployeeId == userId || s.AllocatedToId == userId || s.TeleExecutiveId == userId))
+        // An employee can hold thousands of records. Joining Users and running three per-row
+        // DsrEntries subqueries over those wide rows is slow and memory-hungry in SQL Server,
+        // so pull flat rows, fetch the small lookups once, and stitch + sort in memory.
+        private async Task<List<object>> LoadSalesListAsync(int companyId, Expression<Func<SalesData, bool>> scope)
+        {
+            var records = await _context.SalesRecords
+                .AsNoTracking()
+                .Where(scope)
                 .Select(s => new
                 {
                     s.Id,
                     s.CompanyID,
                     s.CompanyName,
                     s.CityDistrict,
+                    s.Source,
                     s.Status,
                     s.CreatedAt,
                     s.LastActionDate,
@@ -512,51 +509,94 @@ namespace STS.Controllers
                     s.BusinessDescription,
                     s.OpeningComments,
                     s.Priority,
-                    Employee = s.Employee != null ? new
-                    {
-                        s.Employee.FullName,
-                        s.Employee.Email,
-                        s.Employee.Department
-                    } : null,
-                    AllocatedTo = s.AllocatedTo != null ? new
-                    {
-                        s.AllocatedTo.Id,
-                        s.AllocatedTo.FullName,
-                        s.AllocatedTo.Email,
-                        s.AllocatedTo.Department
-                    } : null,
-                    TeleExecutive = s.TeleExecutive != null ? new
-                    {
-                        s.TeleExecutive.Id,
-                        s.TeleExecutive.FullName
-                    } : null,
-                    MarketingExecutive = s.MarketingExecutive != null ? new
-                    {
-                        s.MarketingExecutive.Id,
-                        s.MarketingExecutive.FullName
-                    } : null,
-                    // Service taken — read from the most recent converted status update
-                    // logged against this record; all null until the first conversion.
-                    ServiceTaken = _context.DsrEntries
-                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
-                        .OrderByDescending(d => d.CreatedAt)
-                        .Select(d => d.ConvertedFor)
-                        .FirstOrDefault(),
-                    ServicePrice = _context.DsrEntries
-                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
-                        .OrderByDescending(d => d.CreatedAt)
-                        .Select(d => d.ConvertedPrice)
-                        .FirstOrDefault(),
-                    ServiceDate = _context.DsrEntries
-                        .Where(d => d.SalesDataId == s.Id && d.ConvertedFor != null)
-                        .OrderByDescending(d => d.CreatedAt)
-                        .Select(d => (DateTime?)d.CreatedAt)
-                        .FirstOrDefault()
+                    s.EmployeeId,
+                    s.AllocatedToId,
+                    s.TeleExecutiveId,
+                    s.MarketingExecutiveId
                 })
-                .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
 
-            return Ok(sales);
+            var coAssignees = await StsCoAssignments.LoadAsync(_context, companyId, records.Select(r => r.Id).ToList());
+
+            var userIds = records
+                .SelectMany(r => new int?[] { r.EmployeeId, r.AllocatedToId, r.TeleExecutiveId, r.MarketingExecutiveId })
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Concat(coAssignees.Values.SelectMany(ids => ids))
+                .Distinct()
+                .ToList();
+            var users = await _context.Users
+                .AsNoTracking()
+                .Where(u => userIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.FullName, u.Email, u.Department, u.EmployeeRole })
+                .ToDictionaryAsync(u => u.Id);
+
+            // Service taken — read from the most recent converted status update logged
+            // against each record; all null until the first conversion.
+            var conversions = (await _context.DsrEntries
+                    .AsNoTracking()
+                    .Where(d => d.TenantCompanyId == companyId && d.ConvertedFor != null)
+                    .Select(d => new { d.SalesDataId, d.ConvertedFor, d.ConvertedPrice, d.CreatedAt })
+                    .ToListAsync())
+                .GroupBy(d => d.SalesDataId)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(d => d.CreatedAt).First());
+
+            return records
+                .OrderByDescending(s => s.CreatedAt)
+                .Select(s =>
+                {
+                    var employee = users.TryGetValue(s.EmployeeId, out var e) ? e : null;
+                    var allocatedTo = s.AllocatedToId.HasValue && users.TryGetValue(s.AllocatedToId.Value, out var a) ? a : null;
+                    var tele = s.TeleExecutiveId.HasValue && users.TryGetValue(s.TeleExecutiveId.Value, out var t) ? t : null;
+                    var marketing = s.MarketingExecutiveId.HasValue && users.TryGetValue(s.MarketingExecutiveId.Value, out var m) ? m : null;
+                    conversions.TryGetValue(s.Id, out var conversion);
+
+                    return (object)new
+                    {
+                        s.Id,
+                        s.CompanyID,
+                        s.CompanyName,
+                        s.CityDistrict,
+                        s.Source,
+                        s.Status,
+                        s.CreatedAt,
+                        s.LastActionDate,
+                        s.MeetingScheduledAt,
+                        s.MeetingMode,
+                        s.NextActionDate,
+                        s.AllocatorComment,
+                        s.ContactPerson,
+                        s.Designation,
+                        s.CompanyAddress,
+                        s.Address1,
+                        s.Address2,
+                        s.PhoneNumber,
+                        s.Mobile1,
+                        s.Mobile2,
+                        s.Fax,
+                        s.Website,
+                        s.Email,
+                        s.OwnerName,
+                        s.Pincode,
+                        s.State,
+                        s.Country,
+                        s.LeadBy,
+                        s.BusinessDescription,
+                        s.OpeningComments,
+                        s.Priority,
+                        Employee = employee != null ? new { employee.FullName, employee.Email, employee.Department } : null,
+                        AllocatedTo = allocatedTo != null ? new { allocatedTo.Id, allocatedTo.FullName, allocatedTo.Email, allocatedTo.Department, allocatedTo.EmployeeRole } : null,
+                        TeleExecutive = tele != null ? new { tele.Id, tele.FullName, tele.EmployeeRole } : null,
+                        MarketingExecutive = marketing != null ? new { marketing.Id, marketing.FullName } : null,
+                        CoAssignees = coAssignees.TryGetValue(s.Id, out var coIds)
+                            ? coIds.Where(users.ContainsKey).Select(id => new { users[id].Id, users[id].FullName, users[id].EmployeeRole }).ToList()
+                            : null,
+                        ServiceTaken = conversion?.ConvertedFor,
+                        ServicePrice = conversion?.ConvertedPrice,
+                        ServiceDate = (DateTime?)conversion?.CreatedAt
+                    };
+                })
+                .ToList();
         }
 
         [HttpGet("sales/{id:int}")]
@@ -638,7 +678,8 @@ namespace STS.Controllers
 
             if (sales == null) return NotFound(new { message = "Sales record not found." });
 
-            if (sales.AllocatedToId != userId && sales.EmployeeId != userId && sales.TeleExecutiveId != userId)
+            if (sales.AllocatedToId != userId && sales.EmployeeId != userId && sales.TeleExecutiveId != userId
+                && !await StsCoAssignments.IsCoAssigneeAsync(_context, id, userId))
             {
                 return Forbid();
             }
@@ -663,7 +704,8 @@ namespace STS.Controllers
             // Allow the record's original creator, and the Tele Sales employee who allotted it
             // onward to Field Sales, to keep viewing its history — not just whoever it's
             // currently allocated to.
-            if (salesData.AllocatedToId != userId && salesData.EmployeeId != userId && salesData.TeleExecutiveId != userId)
+            if (salesData.AllocatedToId != userId && salesData.EmployeeId != userId && salesData.TeleExecutiveId != userId
+                && !await StsCoAssignments.IsCoAssigneeAsync(_context, id, userId))
             {
                 return Forbid();
             }
@@ -708,8 +750,11 @@ namespace STS.Controllers
             var salesData = await _context.SalesRecords.FirstOrDefaultAsync(s => s.Id == id && s.TenantCompanyId == companyId);
             if (salesData == null) return NotFound(new { message = "Sales record not found." });
 
-            // Ensure they can only update their own assigned records
-            if (salesData.AllocatedToId != userId)
+            // Anyone with the record on their STS Report can log an update: whoever holds it
+            // (directly or shared), whoever created it, or the Tele Sales employee who allotted
+            // it onward to Field Sales and keeps tracking it.
+            if (salesData.AllocatedToId != userId && salesData.EmployeeId != userId && salesData.TeleExecutiveId != userId
+                && !await StsCoAssignments.IsCoAssigneeAsync(_context, salesData.Id, userId))
             {
                 return Forbid();
             }
@@ -733,10 +778,12 @@ namespace STS.Controllers
                 return BadRequest(new { message = "Please describe the custom status." });
             }
 
-            // First status update on a record promotes its profile ID from a
-            // New Contact (NC-) to an Existing Contact (EC-), keeping the same suffix.
+            // A record is promoted from a New Contact (NC-) to an Existing Contact (EC-) only when
+            // it is converted (a service is taken) — not on its first status update. The suffix is kept.
             // Older DSR lines are restamped so history stays searchable by the new ID.
-            var promotedProfileId = StsPipeline.PromoteProfileId(salesData.CompanyID);
+            var promotedProfileId = StsPipeline.IsConvertedStatus(request.Status)
+                ? StsPipeline.PromoteProfileId(salesData.CompanyID)
+                : null;
             if (promotedProfileId != null)
             {
                 var previousProfileId = salesData.CompanyID;
@@ -751,6 +798,10 @@ namespace STS.Controllers
             salesData.Priority = request.Priority;
             salesData.LastActionDate = DateTime.UtcNow;
             salesData.NextActionDate = request.NextCallMeetingDate;
+            // The meeting is fixed by the Call/Meeting date picked on this update: it drops into
+            // Current/Past Meetings on that day. Stored at noon UTC so the calendar day is the same
+            // in every timezone the team works from.
+            salesData.MeetingScheduledAt = DateTime.SpecifyKind(request.CallMeetingDate!.Value.Date.AddHours(12), DateTimeKind.Utc);
 
             var actingUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
             var updatedByName = actingUser?.FullName ?? "Employee";
@@ -862,6 +913,8 @@ namespace STS.Controllers
                     MarketingExecutive = s.MarketingExecutive != null ? new { s.MarketingExecutive.Id, s.MarketingExecutive.FullName } : null,
                 })
                 .OrderByDescending(s => s.CreatedAt)
+                // A one-letter query can match nearly every record; cap it to the newest matches.
+                .Take(200)
                 .ToListAsync();
 
             return Ok(results);
@@ -957,7 +1010,7 @@ namespace STS.Controllers
             var salesData = await _context.SalesRecords.FirstOrDefaultAsync(s => s.Id == id && s.TenantCompanyId == companyId);
             if (salesData == null) return NotFound(new { message = "Sales record not found." });
 
-            if (salesData.AllocatedToId == userId)
+            if (salesData.AllocatedToId == userId || await StsCoAssignments.IsCoAssigneeAsync(_context, id, userId))
                 return BadRequest(new { message = "This record is already allocated to you." });
 
             var existingPending = await _context.StsAllocationRequests
@@ -965,22 +1018,20 @@ namespace STS.Controllers
             if (existingPending)
                 return BadRequest(new { message = "You already have a pending request for this record." });
 
-            _context.StsAllocationRequests.Add(new StsAllocationRequest
+            var allocationRequest = new StsAllocationRequest
             {
                 TenantCompanyId = companyId,
                 SalesDataId = id,
                 RequestedById = userId,
                 Comment = request?.Comment,
-            });
+            };
+            _context.StsAllocationRequests.Add(allocationRequest);
             await _context.SaveChangesAsync();
+
+            await StsRequestNotifier.NotifyAsync(_context, _emailService, HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>(), _logger, allocationRequest.Id, StsRequestNotifier.Kind.Submitted);
 
             return Ok(new { message = "Request sent to Admin for approval." });
         }
-    }
-
-    public class ScheduleMeetingRequest
-    {
-        public string MeetingMode { get; set; } = string.Empty;
     }
 
     public class RequestStsAllocationRequest

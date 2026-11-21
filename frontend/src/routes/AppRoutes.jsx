@@ -24,6 +24,8 @@ import EditSts from '../pages/admin/sts/EditSts';
 import SiteImagesGallery from '../pages/admin/sts/SiteImagesGallery';
 import EmployeeStsRequests from '../pages/admin/sts/EmployeeStsRequests';
 import GpsTracking from '../pages/admin/gps/GpsTracking';
+import EmployeeAnalytics from '../pages/admin/analytics/EmployeeAnalytics';
+import EmployeeAnalyticsDetail from '../pages/admin/analytics/EmployeeAnalyticsDetail';
 
 import SalesLayout from '../layouts/SalesLayout';
 import SalesDashboard from '../pages/sales/Dashboard';
@@ -31,8 +33,7 @@ import SalesStsList from '../pages/sales/SalesStsList';
 import SalesProfile from '../pages/sales/Profile';
 import StsReport from '../pages/sales/StsReport';
 import MyDsr from '../pages/sales/MyDsr';
-import CurrentMeetings from '../pages/sales/CurrentMeetings';
-import PastMeetings from '../pages/sales/PastMeetings';
+import MyMeetings from '../pages/sales/MyMeetings';
 
 const AppRoutes = () => {
   return (
@@ -67,6 +68,8 @@ const AppRoutes = () => {
           <Route path="sts/search" element={<StsSearch />} />
           <Route path="sts/site-images" element={<SiteImagesGallery />} />
           <Route path="sts/requests" element={<EmployeeStsRequests />} />
+          <Route path="sts/employee-analytics" element={<EmployeeAnalytics />} />
+          <Route path="sts/employee-analytics/:id" element={<EmployeeAnalyticsDetail />} />
           <Route path="gps" element={<GpsTracking />} />
         </Route>
       </Route>
@@ -79,8 +82,9 @@ const AppRoutes = () => {
           <Route path="sts/add" element={<AddSts />} />
           <Route path="sts/report" element={<StsReport />} />
           <Route path="dsr" element={<MyDsr />} />
-          <Route path="meetings/current" element={<CurrentMeetings />} />
-          <Route path="meetings/past" element={<PastMeetings />} />
+          <Route path="meetings" element={<MyMeetings />} />
+          <Route path="meetings/current" element={<Navigate to="/sales/meetings" replace />} />
+          <Route path="meetings/past" element={<Navigate to="/sales/meetings?view=past" replace />} />
           <Route path="profile" element={<SalesProfile />} />
         </Route>
       </Route>

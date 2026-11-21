@@ -5,7 +5,7 @@ import { employeeService } from '../../services/employeeService';
 import { stsService } from '../../services/stsService';
 import EmployeePicker from '../../components/EmployeePicker';
 import MeetingBoard from '../sales/MeetingBoard';
-import MeetingCard, { getMeetingDate, isSameDay } from '../sales/MeetingCard';
+import MeetingCard, { getMeetingDate, getNextCallDate, isSameDay } from '../sales/MeetingCard';
 import StsDetailsDrawer from './sts/StsDetailsDrawer';
 import { initials, avatarGradient } from '../../utils/avatar';
 
@@ -103,13 +103,23 @@ const EmployeeMeetings = () => {
     return meetings
       .filter((s) => {
         const meetingDate = getMeetingDate(s);
-        return meetingDate && isSameDay(meetingDate, selectedDate);
+        const nextDate = getNextCallDate(s);
+        return (meetingDate && isSameDay(meetingDate, selectedDate)) || (nextDate && isSameDay(nextDate, selectedDate));
       })
       .filter((s) => searchTerm
         ? (s.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) || s.companyID?.toLowerCase().includes(searchTerm.toLowerCase()))
         : true)
       .sort((a, b) => getMeetingDate(b) - getMeetingDate(a));
   }, [meetings, selectedDate, searchTerm]);
+
+  // Marks a tile that is on this day only because it is the follow-up (next) date.
+  const tagFor = (record) => {
+    const meetingDate = getMeetingDate(record);
+    const nextDate = getNextCallDate(record);
+    const isNextDay = nextDate && isSameDay(nextDate, selectedDate);
+    const isMeetingDay = meetingDate && isSameDay(meetingDate, selectedDate);
+    return isNextDay && !isMeetingDay ? 'Next call' : null;
+  };
 
   const meetingsForMonth = useMemo(() => {
     const pickedDay = selectedPastDate ? new Date(`${selectedPastDate}T00:00:00`) : null;
@@ -131,7 +141,9 @@ const EmployeeMeetings = () => {
     ? 'Today'
     : isSameDay(selectedDate, new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1))
       ? 'Yesterday'
-      : selectedDate.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+      : isSameDay(selectedDate, new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1))
+        ? 'Tomorrow'
+        : selectedDate.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   const dayFullDateLabel = selectedDate.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const shiftDay = (delta) => {
     setSelectedDate((prev) => {
@@ -168,7 +180,7 @@ const EmployeeMeetings = () => {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-800 p-8 border border-gray-100 dark:border-slate-700 shadow-sm transition-colors duration-300">
+      <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-800 p-5 sm:p-8 border border-gray-100 dark:border-slate-700 shadow-sm transition-colors duration-300">
         <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-primary-500/10 rounded-full blur-2xl"></div>
         <div className="relative z-10 flex items-start justify-between flex-wrap gap-4">
           <div className="flex items-start gap-4">
@@ -227,28 +239,51 @@ const EmployeeMeetings = () => {
           onPrev={() => shiftDay(-1)}
           onNext={() => shiftDay(1)}
           canGoPrev={selectedDate > new Date(currentWindowStart)}
-          canGoNext={selectedDate < today}
+          canGoNext
           isLoading={isLoading}
           emptyIcon={CalendarClock}
           emptyTitle="No meetings this day"
-          emptyMessage={`Nothing was fixed for this date. Use the arrows to check other days.`}
+          emptyMessage={`Nothing was fixed or scheduled for this date. Use the arrows or the calendar to check other days.`}
           extra={
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400 dark:text-slate-500" />
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
               <input
-                type="text"
-                className="block w-56 pl-10 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-sm transition-colors duration-300"
-                placeholder="Search this day..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                type="date"
+                value={toDateInputValue(selectedDate)}
+                min={toDateInputValue(currentWindowStart)}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const [y, m, d] = e.target.value.split('-').map(Number);
+                  setSelectedDate(new Date(y, m - 1, d));
+                }}
+                title="Pick a date"
+                className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 text-sm transition-colors duration-300"
               />
+              {!isSameDay(selectedDate, today) && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(today)}
+                  className="px-3 py-2 rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 text-white text-sm font-semibold transition-colors"
+                >
+                  Today
+                </button>
+              )}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-gray-400 dark:text-slate-500" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full sm:w-56 pl-10 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-sm transition-colors duration-300"
+                  placeholder="Search this day..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
           }
         >
           {meetingsForDay.map((record) => (
-            <MeetingCard key={record.id} record={record} onView={() => openRecordDetails(record)} />
+            <MeetingCard key={record.id} record={record} tag={tagFor(record)} onView={() => openRecordDetails(record)} />
           ))}
         </MeetingBoard>
       ) : (
@@ -272,7 +307,7 @@ const EmployeeMeetings = () => {
                 </div>
                 <input
                   type="text"
-                  className="block w-48 pl-10 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-sm transition-colors duration-300"
+                  className="block w-full sm:w-48 pl-10 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-sm transition-colors duration-300"
                   placeholder="Search by name/ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}

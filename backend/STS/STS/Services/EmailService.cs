@@ -90,7 +90,7 @@ namespace STS.Services
             return port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
         }
 
-        public async Task SendWelcomeEmailAsync(string toEmail, string fullName, string password, string? companyLogoUrl = null, string? companyName = null)
+        public async Task SendWelcomeEmailAsync(string toEmail, string fullName, string password, string? companyLogoUrl = null, string? companyName = null, IEnumerable<string>? ccEmails = null)
         {
             try
             {
@@ -102,6 +102,12 @@ namespace STS.Services
                     emailSettings["SenderEmail"]
                 ));
                 message.To.Add(new MailboxAddress(fullName, toEmail));
+                foreach (var cc in (ccEmails ?? Enumerable.Empty<string>())
+                    .Where(e => !string.IsNullOrWhiteSpace(e) && !string.Equals(e, toEmail, StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    message.Cc.Add(MailboxAddress.Parse(cc));
+                }
                 message.Subject = "Welcome to ERP SYSTEM - STS Login Credentials";
 
                 var bodyBuilder = new BodyBuilder();
@@ -127,7 +133,7 @@ namespace STS.Services
                             <p style='font-size: 14px; color: #666;'>
                                 Please log in to the portal and ensure you keep these credentials secure. We recommend changing your password after your first login if the system permits.
                             </p>
-                            <a href='https://sts.ideaspromotion.com' style='display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold;'>Login to STS Portal</a>
+                            <a href='https://weberp.ideaspromotion.com/login' style='display: inline-block; margin-top: 20px; padding: 12px 24px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold;'>Login to STS Portal</a>
                         </div>
                         <div style='background-color: #f1f5f9; padding: 15px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;'>
                             <p style='margin: 0;'>© {System.DateTime.Now.Year} ERP SYSTEM. All rights reserved.</p>
@@ -340,10 +346,11 @@ namespace STS.Services
                 foreach (var to in data.ToEmails) message.To.Add(MailboxAddress.Parse(to));
                 foreach (var cc in data.CcEmails) message.Cc.Add(MailboxAddress.Parse(cc));
 
-                var previousLabel = StsPipeline.GetStatusLabel(data.PreviousStatus);
+                // Short status codes only (e.g. C_B) — the full-form label is intentionally not shown.
+                var previousLabel = string.IsNullOrWhiteSpace(data.PreviousStatus) ? "New" : data.PreviousStatus;
                 var newLabel = data.NewStatus == "OTHER" && !string.IsNullOrWhiteSpace(data.OtherStatusText)
                     ? data.OtherStatusText
-                    : StsPipeline.GetStatusLabel(data.NewStatus);
+                    : data.NewStatus;
 
                 message.Subject = !string.IsNullOrWhiteSpace(data.Subject)
                     ? data.Subject
@@ -365,14 +372,13 @@ namespace STS.Services
                 // be populated in a different field order.
                 string phone = new[] { data.Mobile1, data.PhoneNumber, data.Mobile2 }.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "";
 
+                // No logo in the status-update email — client asked for it to be removed.
                 var bodyBuilder = new BodyBuilder();
-                string logoHtml = BuildCompanyLogoHtml(bodyBuilder, data.TenantCompanyLogoUrl, data.TenantCompanyName);
 
                 bodyBuilder.HtmlBody = $@"
                     <div style='font-family: Segoe UI, Arial, sans-serif; color: #333; max-width: 640px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.08);'>
                         <div style='background: linear-gradient(135deg, {statusColor}, #4338ca); color: #fff; padding: 26px 20px; text-align: center;'>
-                            {logoHtml}
-                            <p style='margin: 14px 0 4px 0; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.85;'>{System.Net.WebUtility.HtmlEncode(data.TenantCompanyName)} · STS</p>
+                            <p style='margin: 0 0 4px 0; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.85;'>{System.Net.WebUtility.HtmlEncode(data.TenantCompanyName)} · STS</p>
                             <h2 style='margin: 0; font-size: 21px;'>Status Update Logged</h2>
                         </div>
                         <div style='padding: 28px 30px; background-color: #ffffff;'>
@@ -584,7 +590,9 @@ namespace STS.Services
             string firstName = string.Empty;
             if (!string.IsNullOrWhiteSpace(data.UpdatedByName))
             {
-                firstName = data.UpdatedByName.Trim().Split(' ')[0];
+                var titles = new[] { "mr", "mrs", "ms", "miss", "dr", "shri", "smt", "sri", "er", "prof" };
+                var nameParts = data.UpdatedByName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                firstName = nameParts.FirstOrDefault(w => !titles.Contains(w.Replace(".", "").ToLowerInvariant())) ?? nameParts.FirstOrDefault() ?? string.Empty;
             }
 
             string role = data.UpdatedByRole ?? string.Empty;
@@ -592,11 +600,15 @@ namespace STS.Services
 
             if (role.Equals("Field Sales", StringComparison.OrdinalIgnoreCase))
             {
-                prefix = $"Field sales Sales : {firstName}";
+                prefix = $"Field Sales: {firstName}";
             }
             else if (role.Equals("Tele Sales", StringComparison.OrdinalIgnoreCase))
             {
                 prefix = $"Telesales: {firstName}";
+            }
+            else if (role.Equals("Sub-Admin", StringComparison.OrdinalIgnoreCase) || role.Equals("SubAdmin", StringComparison.OrdinalIgnoreCase))
+            {
+                prefix = $"Sub-Admin: {firstName}";
             }
             else if (role.Equals("Admin", StringComparison.OrdinalIgnoreCase) || role.Equals("Administrator", StringComparison.OrdinalIgnoreCase))
             {
@@ -610,15 +622,207 @@ namespace STS.Services
             string city = string.IsNullOrWhiteSpace(data.CityDistrict) ? string.Empty : $" {data.CityDistrict.Trim()}";
             string companyBlock = $"[ {data.CompanyName} {data.CompanyID}{city} ]";
 
-            string statusLabel = data.NewStatus == "OTHER" && !string.IsNullOrWhiteSpace(data.OtherStatusText)
-                ? data.OtherStatusText
-                : StsPipeline.GetStatusLabel(data.NewStatus);
-
             string statusText = data.NewStatus == "OTHER"
                 ? (string.IsNullOrWhiteSpace(data.OtherStatusText) ? "OTHER" : $"OTHER ({data.OtherStatusText})")
-                : $"{data.NewStatus} ({statusLabel})";
+                : data.NewStatus;
 
             return $"{prefix} {companyBlock} Status: {statusText}".Trim();
+        }
+
+        // ── STS allocation request emails ──────────────────────────────────────────
+
+        public Task SendStsRequestSubmittedEmailAsync(StsRequestEmailData data)
+        {
+            string body = $@"
+                <p style='font-size: 15px; margin: 0 0 14px 0;'>Dear Admin,</p>
+                <p style='font-size: 14px; line-height: 1.6; margin: 0 0 22px 0; color: #334155;'>
+                    <strong>{Enc(data.EmployeeName)}</strong> has requested allocation of an existing STS record that was flagged as a duplicate while adding a new STS.
+                    Please review the details below and approve or reject the request.
+                </p>"
+                + StsRequestSection("Employee Details", new (string, string?)[]
+                {
+                    ("Name", data.EmployeeName),
+                    ("Employee ID", data.EmployeeId.ToString()),
+                    ("Email", data.EmployeeEmail),
+                    ("Mobile", data.EmployeeMobile),
+                    ("Designation", data.EmployeeDesignation),
+                    ("Department", data.EmployeeDepartment),
+                    ("Role", data.EmployeeRole),
+                    ("City / Branch", data.EmployeeCityBranch),
+                })
+                + StsRecordSection(data)
+                + StsRequestSection("Request Details", new (string, string?)[]
+                {
+                    ("Requested On", FormatIst(data.RequestedAt)),
+                    ("Employee Comment", data.RequestComment),
+                })
+                + @"<p style='font-size: 14px; line-height: 1.6; margin: 22px 0 0 0; color: #334155;'>
+                        Please log in to the STS Portal and go to <strong>STS &rsaquo; STS Request</strong> to take the necessary action.
+                     </p>";
+
+            return SendStsRequestEmailAsync(
+                data,
+                subject: $"STS Allocation Request: {data.CompanyName} ({data.CompanyID}) - {data.EmployeeName}",
+                accentColor: "#2563eb",
+                heading: "STS Allocation Request - Action Required",
+                bodyHtml: body,
+                logContext: "submitted");
+        }
+
+        public Task SendStsRequestApprovedEmailAsync(StsRequestEmailData data)
+        {
+            string body = $@"
+                <p style='font-size: 15px; margin: 0 0 14px 0;'>Dear <strong>{Enc(data.EmployeeName)}</strong>,</p>
+                <p style='font-size: 14px; line-height: 1.6; margin: 0 0 22px 0; color: #334155;'>
+                    We are pleased to inform you that your request for allocation of the STS record below has been
+                    <strong style='color: #059669;'>approved</strong>. The record is now assigned to you and is available under
+                    <strong>My STS Records</strong>.
+                </p>"
+                + StsRecordSection(data)
+                + StsRequestSection("Review Details", new (string, string?)[]
+                {
+                    ("Approved By", data.ReviewedByName),
+                    ("Approved On", data.ReviewedAt.HasValue ? FormatIst(data.ReviewedAt.Value) : null),
+                })
+                + @"<p style='font-size: 14px; line-height: 1.6; margin: 22px 0 0 0; color: #334155;'>
+                        Please log in to the STS Portal to begin follow-up on this record.
+                     </p>";
+
+            return SendStsRequestEmailAsync(
+                data,
+                subject: $"Approved: STS Allocation Request for {data.CompanyName} ({data.CompanyID})",
+                accentColor: "#059669",
+                heading: "STS Allocation Request Approved",
+                bodyHtml: body,
+                logContext: "approved");
+        }
+
+        public Task SendStsRequestRejectedEmailAsync(StsRequestEmailData data)
+        {
+            string body = $@"
+                <p style='font-size: 15px; margin: 0 0 14px 0;'>Dear <strong>{Enc(data.EmployeeName)}</strong>,</p>
+                <p style='font-size: 14px; line-height: 1.6; margin: 0 0 22px 0; color: #334155;'>
+                    Thank you for your request. After careful review, we regret to inform you that your request for allocation of the STS record below has been
+                    <strong style='color: #dc2626;'>declined</strong>.
+                </p>"
+                + StsRecordSection(data)
+                + StsRequestSection("Review Details", new (string, string?)[]
+                {
+                    ("Reviewed By", data.ReviewedByName),
+                    ("Reviewed On", data.ReviewedAt.HasValue ? FormatIst(data.ReviewedAt.Value) : null),
+                    ("Reason", string.IsNullOrWhiteSpace(data.ReviewComment) ? "No reason provided" : data.ReviewComment),
+                })
+                + @"<p style='font-size: 14px; line-height: 1.6; margin: 22px 0 0 0; color: #334155;'>
+                        If you have any questions regarding this decision, please contact your Admin.
+                     </p>";
+
+            return SendStsRequestEmailAsync(
+                data,
+                subject: $"Declined: STS Allocation Request for {data.CompanyName} ({data.CompanyID})",
+                accentColor: "#dc2626",
+                heading: "STS Allocation Request Declined",
+                bodyHtml: body,
+                logContext: "rejected");
+        }
+
+        private static string Enc(string? value) => System.Net.WebUtility.HtmlEncode(value ?? string.Empty);
+
+        // Stored timestamps are UTC; the business runs on IST (UTC+5:30).
+        private static string FormatIst(DateTime utc)
+        {
+            var asUtc = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
+            return asUtc.AddMinutes(330).ToString("dd MMM yyyy, hh:mm tt") + " IST";
+        }
+
+        private static string StsRequestSection(string title, IEnumerable<(string Label, string? Value)> rows)
+        {
+            var rowHtml = string.Concat(rows
+                .Where(r => !string.IsNullOrWhiteSpace(r.Value))
+                .Select(r => $@"
+                    <tr>
+                        <td style='padding: 9px 14px; border-bottom: 1px solid #eef0f3; font-size: 13px; color: #64748b; width: 38%; vertical-align: top;'>{Enc(r.Label)}</td>
+                        <td style='padding: 9px 14px; border-bottom: 1px solid #eef0f3; font-size: 13px; color: #0f172a; font-weight: 600; white-space: pre-wrap;'>{Enc(r.Value)}</td>
+                    </tr>"));
+            if (rowHtml.Length == 0) return string.Empty;
+
+            return $@"
+                <p style='margin: 0 0 8px 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #475569;'>{Enc(title)}</p>
+                <table style='width: 100%; border-collapse: collapse; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px;' cellpadding='0' cellspacing='0'>
+                    <tbody>{rowHtml}</tbody>
+                </table>";
+        }
+
+        private static string StsRecordSection(StsRequestEmailData d) => StsRequestSection("STS Details", new (string, string?)[]
+        {
+            ("Profile ID", d.CompanyID),
+            ("Company Name", d.CompanyName),
+            ("Contact Person", d.ContactPerson),
+            ("Phone", d.Phone),
+            ("Email", d.Email),
+            ("City", d.CityDistrict),
+            ("State", d.State),
+            ("Country", d.Country),
+            ("Source", d.Source),
+            ("Priority", d.Priority),
+            ("Current Status", d.Status),
+            ("Created On", d.RecordCreatedAt.HasValue ? FormatIst(d.RecordCreatedAt.Value) : null),
+            ("Currently Allotted To", d.CurrentlyAllocatedTo ?? "Unassigned"),
+        });
+
+        private async Task SendStsRequestEmailAsync(StsRequestEmailData data, string subject, string accentColor, string heading, string bodyHtml, string logContext)
+        {
+            try
+            {
+                var emailSettings = _config.GetSection("EmailSettings");
+
+                var message = new MimeMessage();
+                message.From.Add(new MailboxAddress(emailSettings["SenderName"], emailSettings["SenderEmail"]));
+                foreach (var to in data.ToEmails.Distinct(StringComparer.OrdinalIgnoreCase)) message.To.Add(MailboxAddress.Parse(to));
+                message.Subject = subject;
+
+                var bodyBuilder = new BodyBuilder();
+                string logoHtml = BuildCompanyLogoHtml(bodyBuilder, data.TenantCompanyLogoUrl, data.TenantCompanyName);
+
+                bodyBuilder.HtmlBody = $@"
+                    <div style='background-color: #f1f5f9; padding: 24px 12px;'>
+                    <div style='font-family: Segoe UI, Arial, sans-serif; color: #333; max-width: 640px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.08);'>
+                        <div style='background-color: {accentColor}; color: #ffffff; padding: 24px 20px; text-align: center;'>
+                            {logoHtml}
+                            <p style='margin: 14px 0 4px 0; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.9;'>{Enc(data.TenantCompanyName)} &middot; Sales Tracking System</p>
+                            <h2 style='margin: 0; font-size: 21px;'>{Enc(heading)}</h2>
+                        </div>
+                        <div style='padding: 28px 30px;'>
+                            {bodyHtml}
+                            <div style='text-align: center; margin-top: 26px;'>
+                                <a href='{Enc(data.PortalUrl)}' style='display: inline-block; padding: 12px 28px; background-color: {accentColor}; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;'>Login to STS Portal</a>
+                                <p style='margin: 10px 0 0 0; font-size: 12px; color: #94a3b8;'><a href='{Enc(data.PortalUrl)}' style='color: #64748b;'>{Enc(data.PortalUrl)}</a></p>
+                            </div>
+                            <p style='font-size: 14px; margin: 26px 0 0 0; color: #334155;'>Regards,<br/><strong>{Enc(data.TenantCompanyName)}</strong></p>
+                        </div>
+                        <div style='background-color: #f8fafc; padding: 15px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;'>
+                            <p style='margin: 0;'>&copy; {DateTime.Now.Year} {Enc(data.TenantCompanyName)}. All rights reserved.</p>
+                            <p style='margin: 5px 0 0 0;'>This is an automated message, please do not reply.</p>
+                        </div>
+                    </div>
+                    </div>";
+
+                message.Body = bodyBuilder.ToMessageBody();
+
+                using var client = new SmtpClient();
+                client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+
+                await client.ConnectAsync(emailSettings["SmtpServer"], int.Parse(emailSettings["Port"]), GetSecureSocketOptions(emailSettings));
+                await client.AuthenticateAsync(emailSettings["SenderEmail"], emailSettings["Password"]);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+
+                _logger.LogInformation("STS request {kind} email sent to {to} for {company}", logContext, string.Join(", ", data.ToEmails), data.CompanyName);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send STS request {kind} email for {company}", logContext, data.CompanyName);
+                // Never break the request / review flow over an email.
+            }
         }
     }
 }

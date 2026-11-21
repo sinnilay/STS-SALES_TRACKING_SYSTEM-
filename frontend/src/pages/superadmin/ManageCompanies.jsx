@@ -287,6 +287,8 @@ const ManageCompanies = () => {
                     ? Math.max(0, Math.ceil((new Date(company.subscriptionExpiry || company.trialEndDate) - new Date()) / (1000 * 60 * 60 * 24)))
                     : null;
 
+                  const isExpired = !!company.subscriptionExpiry && new Date(company.subscriptionExpiry) < new Date();
+
                   return (
                     <tr key={company.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-6 py-4">
@@ -332,10 +334,17 @@ const ManageCompanies = () => {
                             </span>
                           </div>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                            PERMANENT
-                          </span>
+                          <div className="inline-flex flex-col items-center">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              PERMANENT
+                            </span>
+                            {isExpired && (
+                              <span className="text-[11px] font-black mt-1 text-rose-600">
+                                Expired {new Date(company.subscriptionExpiry).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
 
@@ -371,15 +380,18 @@ const ManageCompanies = () => {
                       </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        { company.accountType === 'Trial' || company.isTrial?
-                       <button
+                        <button
                           onClick={() => { setRenewCompany(company); setRenewMonths(1); }}
                           title="Renew Subscription"
-                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                          className={`px-3 py-1.5 border rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 shadow-sm ${
+                            isExpired
+                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                          }`}
                         >
-                          <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
-                          Renew Subscription
-                        </button>: ""}
+                          <RefreshCw className={`w-3.5 h-3.5 ${isExpired ? 'text-rose-600' : 'text-emerald-600'}`} />
+                          {isExpired ? 'Renew Expired' : 'Renew Subscription'}
+                        </button>
                         <button
                           onClick={() => setSelectedCompanyModules(company)}
                           title="Manage Modules"
@@ -417,7 +429,7 @@ const ManageCompanies = () => {
                 </button>
               </div>
             
-            <form onSubmit={handleSubmit} className="p-8">
+            <form onSubmit={handleSubmit} className="p-5 sm:p-8">
               
               {/* Account Type Selection */}
               <div className="mb-8 p-5 bg-gradient-to-r from-indigo-50/70 to-purple-50/70 rounded-2xl border border-indigo-100/80">

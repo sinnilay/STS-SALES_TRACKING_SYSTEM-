@@ -164,7 +164,7 @@ const StsSearch = () => {
               />
             </div>
             
-            <Button type="submit" isLoading={isLoading} className="px-8 py-2">
+            <Button type="submit" isLoading={isLoading} className="px-4 sm:px-8 py-2">
               Search
             </Button>
           </form>

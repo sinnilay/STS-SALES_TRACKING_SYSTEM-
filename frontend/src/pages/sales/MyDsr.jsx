@@ -57,6 +57,10 @@ const DSR_BOX_CATEGORIES = {
 const FRESH_CALL_IDS = new Set(['DMUPIFC', 'PGIFC', 'NI_FC']);
 const FOLLOW_UP_IDS = new Set(['PGIFU', 'DMUPIFU1', 'DMUPIFU2', 'DMUPIFU3', 'NI_FU']);
 
+// Statuses that increment the "Count" badge next to the update count —
+// DMUPIFC, PGIFC, NI_FC, CNVT_FC and NI (Not Interested). Same rule as the admin Daily Report.
+const TRACKED_STATUS_COUNT_IDS = new Set(['DMUPIFC', 'PGIFC', 'NI_FC', 'CNVT_FC', 'NI']);
+
 const getDsrBoxCategory = (statusId) => {
   if (statusId === 'C_C') return DSR_BOX_CATEGORIES.cold;
   // SERV ("Only Service Meeting") is the one neutral status that's a genuine meeting —
@@ -201,7 +205,7 @@ const MyDsr = () => {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-800 p-8 border border-gray-100 dark:border-slate-700 shadow-sm transition-colors duration-300">
+      <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-800 p-5 sm:p-8 border border-gray-100 dark:border-slate-700 shadow-sm transition-colors duration-300">
         <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-primary-500/10 rounded-full blur-2xl"></div>
         <div className="relative z-10 flex items-start justify-between flex-wrap gap-4">
           <div className="flex items-start gap-4">
@@ -244,7 +248,7 @@ const MyDsr = () => {
             <div className="flex items-center justify-between relative z-10">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-gray-500 dark:text-slate-400">{stat.name}</p>
-                <p className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{stat.value}</p>
+                <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">{stat.value}</p>
               </div>
               <div className={`p-4 rounded-xl text-white bg-gradient-to-br ${stat.gradient} shadow-lg ${stat.shadow} transform group-hover:scale-110 transition-transform duration-300`}>
                 <stat.icon className="w-6 h-6" />
@@ -278,7 +282,7 @@ const MyDsr = () => {
               value={dateFrom}
               onClick={() => openPicker(dateFromRef)}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-[130px] bg-transparent text-gray-900 dark:text-slate-100 text-sm cursor-pointer focus:outline-none"
+              className="flex-1 min-w-0 sm:flex-none sm:w-[130px] bg-transparent text-gray-900 dark:text-slate-100 text-sm cursor-pointer focus:outline-none"
             />
             <span className="text-xs font-semibold text-gray-400 dark:text-slate-500">to</span>
             <input
@@ -287,7 +291,7 @@ const MyDsr = () => {
               value={dateTo}
               onClick={() => openPicker(dateToRef)}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-[130px] bg-transparent text-gray-900 dark:text-slate-100 text-sm cursor-pointer focus:outline-none"
+              className="flex-1 min-w-0 sm:flex-none sm:w-[130px] bg-transparent text-gray-900 dark:text-slate-100 text-sm cursor-pointer focus:outline-none"
             />
           </div>
 
@@ -322,7 +326,7 @@ const MyDsr = () => {
           <Spinner />
         </div>
       ) : grouped.length === 0 ? (
-        <div className="bg-white dark:bg-slate-800 p-12 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col items-center justify-center text-center transition-colors duration-300">
+        <div className="bg-white dark:bg-slate-800 p-6 sm:p-12 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col items-center justify-center text-center transition-colors duration-300">
           <div className="w-16 h-16 bg-gray-50 dark:bg-slate-700/50 rounded-2xl flex items-center justify-center border border-gray-100 dark:border-slate-600 mb-4">
             <Filter className="w-8 h-8 text-gray-400 dark:text-slate-500" />
           </div>
@@ -341,6 +345,8 @@ const MyDsr = () => {
             const monthShort = d.toLocaleDateString(undefined, { month: 'short' }).toUpperCase();
             const dayNum = d.toLocaleDateString(undefined, { day: '2-digit' });
             const fullDate = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const trackedEntries = dayEntries.filter((entry) => TRACKED_STATUS_COUNT_IDS.has(entry.newStatus));
+            const trackedCompanyNames = trackedEntries.map((entry) => entry.companyName).join(', ');
 
             return (
               <div
@@ -360,30 +366,44 @@ const MyDsr = () => {
                       <p className="text-xs text-gray-400 dark:text-slate-500">{fullDate}</p>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-700 text-xs font-bold text-gray-600 dark:text-slate-300">
-                    <ClipboardList className="w-3.5 h-3.5" />
-                    {dayEntries.length} update{dayEntries.length !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      title={trackedEntries.length > 0 ? trackedCompanyNames : 'No matching updates'}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-500/10 text-xs font-bold text-amber-700 dark:text-amber-400"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Count: {trackedEntries.length}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-700 text-xs font-bold text-gray-600 dark:text-slate-300">
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      {dayEntries.length} update{dayEntries.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {dayEntries.map((entry) => {
                     const category = getDsrBoxCategory(entry.newStatus);
+                    const statusMeta = getStatusMeta(entry.newStatus);
+                    const statusCode = entry.newStatus || 'NEW';
                     return (
                       <button
                         key={entry.id}
                         onClick={() => openEntryDetails(entry)}
-                        title={`${entry.companyName} (${entry.companyID}) · ${getStatusMeta(entry.newStatus).label} · ${formatTime(entry.createdAt)}`}
+                        title={`${entry.companyName} (${entry.companyID}) · ${statusCode} — ${statusMeta.label} · ${category.label} · ${formatTime(entry.createdAt)}`}
                         className="group relative flex flex-col gap-2 rounded-xl border border-gray-100 dark:border-slate-700 bg-gray-50/70 dark:bg-slate-900/40 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md hover:-translate-y-0.5 hover:border-gray-200 dark:hover:border-slate-600 transition-all duration-200 p-3.5 pl-4 text-left overflow-hidden"
                       >
                         <span className={`absolute left-0 top-0 bottom-0 w-1 ${category.bar}`} />
                         <div className="flex items-center justify-between gap-2">
-                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide ${category.text}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${category.dot}`} />
-                            {category.label}
+                          <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide truncate ${category.text}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${category.dot}`} />
+                            {statusCode}
                           </span>
                           <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 shrink-0">{formatTime(entry.createdAt)}</span>
                         </div>
+                        {statusMeta.label && statusMeta.label !== statusCode && (
+                          <p className="-mt-1 text-[11px] font-medium text-gray-500 dark:text-slate-400 line-clamp-2">{statusMeta.label}</p>
+                        )}
                         <div>
                           <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{entry.companyName}</p>
                           <p className="text-[11px] font-mono text-gray-400 dark:text-slate-500 truncate">{entry.companyID}</p>

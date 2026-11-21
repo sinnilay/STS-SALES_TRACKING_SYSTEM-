@@ -6,6 +6,7 @@ import { stsService } from '../../../services/stsService';
 import { settingsService } from '../../../services/settingsService';
 import Button from '../../../components/Button';
 import Spinner from '../../../components/Spinner';
+import { getCitySuggestions } from '../../../utils/cities';
 
 const AllocateModal = ({ salesRecord, onClose, onSuccess }) => {
   const [employees, setEmployees] = useState([]);
@@ -15,6 +16,7 @@ const AllocateModal = ({ salesRecord, onClose, onSuccess }) => {
   const [selectedRole, setSelectedRole] = useState('');
   const [selectedDept, setSelectedDept] = useState('');
   const [selectedDesignation, setSelectedDesignation] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
 
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -43,7 +45,10 @@ const AllocateModal = ({ salesRecord, onClose, onSuccess }) => {
     fetchData();
   }, []);
 
-  const hasEmployeeFilter = Boolean(searchTerm.trim() || selectedDept || selectedDesignation || selectedRole);
+  // City filter options come from the cities/branches the active employees actually belong to.
+  const cities = [...new Set(employees.map(e => (e.cityBranch || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+
+  const hasEmployeeFilter = Boolean(searchTerm.trim() || selectedDept || selectedDesignation || selectedRole || selectedCity.trim());
 
   const filteredEmployees = !hasEmployeeFilter ? [] : employees.filter(e => {
     const matchesSearch = (e.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -51,7 +56,8 @@ const AllocateModal = ({ salesRecord, onClose, onSuccess }) => {
     const matchesRole = selectedRole ? e.employeeRole === selectedRole : true;
     const matchesDept = selectedDept ? e.employeeDept === selectedDept : true;
     const matchesDesignation = selectedDesignation ? e.designation === selectedDesignation : true;
-    return matchesSearch && matchesRole && matchesDept && matchesDesignation;
+    const matchesCity = selectedCity.trim() ? (e.cityBranch || '').toLowerCase().includes(selectedCity.trim().toLowerCase()) : true;
+    return matchesSearch && matchesRole && matchesDept && matchesDesignation && matchesCity;
   });
 
   const handleAllocate = async (employeeId) => {
@@ -69,7 +75,7 @@ const AllocateModal = ({ salesRecord, onClose, onSuccess }) => {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Department</label>
           <select
@@ -100,6 +106,20 @@ const AllocateModal = ({ salesRecord, onClose, onSuccess }) => {
             {roles.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">City</label>
+          {/* Type any city — existing employee cities are only suggestions. */}
+          <input
+            type="text"
+            list="allocate-city-options"
+            value={selectedCity} onChange={e => setSelectedCity(e.target.value)}
+            placeholder="Type or pick a city"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 transition-colors"
+          />
+          <datalist id="allocate-city-options">
+            {getCitySuggestions(cities).map(c => <option key={c} value={c} />)}
+          </datalist>
+        </div>
       </div>
       
       <div className="relative">
@@ -119,7 +139,7 @@ const AllocateModal = ({ salesRecord, onClose, onSuccess }) => {
         {isLoading ? (
           <div className="p-4 text-center"><Spinner /></div>
         ) : !hasEmployeeFilter ? (
-          <div className="p-4 text-center text-gray-500">Select a department, designation, role, or search to see employees.</div>
+          <div className="p-4 text-center text-gray-500">Select a department, designation, role, city, or search to see employees.</div>
         ) : filteredEmployees.length === 0 ? (
           <div className="p-4 text-center text-gray-500">No employees found.</div>
         ) : (
@@ -128,7 +148,7 @@ const AllocateModal = ({ salesRecord, onClose, onSuccess }) => {
               <li key={emp.id} className="p-3 hover:bg-gray-50 dark:hover:bg-slate-800 flex justify-between items-center transition-colors">
                 <div>
                   <div className="font-medium text-gray-900 dark:text-white">{emp.fullName}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400">{emp.email} • {emp.employeeDept} • {emp.employeeRole}{emp.designation ? ` • ${emp.designation}` : ''}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400">{emp.email} • {emp.employeeDept} • {emp.employeeRole}{emp.designation ? ` • ${emp.designation}` : ''}{emp.cityBranch ? ` • ${emp.cityBranch}` : ''}</div>
                 </div>
                 <Button 
                   size="sm" 

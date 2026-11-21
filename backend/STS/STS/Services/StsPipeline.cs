@@ -21,8 +21,9 @@
         };
 
         // Profile ID lifecycle: a freshly created record is a New Contact (NC-),
-        // and the first status update anyone logs against it promotes the same
-        // suffix to an Existing Contact (EC-). Legacy records still carry STS-.
+        // and it is promoted (same suffix) to an Existing Contact (EC-) only once it
+        // is converted, i.e. a service is taken. A plain status update does not promote it.
+        // Legacy records still carry STS-.
         public const string NewContactPrefix = "NC-";
         public const string ExistingContactPrefix = "EC-";
 

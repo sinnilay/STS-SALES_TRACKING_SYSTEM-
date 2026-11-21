@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Building2, MapPin, Phone, Mail, Globe, User, Clock, CheckCircle2, UserCircle2, ArrowRight, MessageSquare, Loader2, CalendarClock, Flag, Mail as MailIcon, FileText, Tag, UserCog, PencilLine } from 'lucide-react';
+import { X, Building2, MapPin, Phone, Mail, Globe, User, Clock, CheckCircle2, UserCircle2, ArrowRight, MessageSquare, Loader2, CalendarClock, Flag, Mail as MailIcon, FileText, Tag, UserCog, PencilLine, Map as MapIcon, Landmark } from 'lucide-react';
 import { getStatusMeta } from '../../../constants/stsPipeline';
 import Modal from '../../../components/Modal';
 import StatusPipelineModal from './StatusPipelineModal';
 
-// `onUpdateStatus` is only passed in by admin-facing screens (e.g. the company
-// admin's Daily Report drawer) — that's what gates the "Update Status" button,
-// since employee-facing usages of this drawer already have their own update entry point.
+// `onUpdateStatus` gates the "Update Status" button shown beside the status badge —
+// passed by the admin Daily Report drawer and by the Tele Sales STS Report.
 const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, fetchHistory, onUpdateStatus, onUpdated, isAdmin }) => {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -80,6 +79,16 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
               <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${currentStatus.badge}`} title={currentStatus.label}>
                 {salesRecord.status || 'New'}
               </span>
+              {onUpdateStatus && (
+                <button
+                  onClick={() => setShowUpdateModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                  title="Update Status"
+                >
+                  <PencilLine className="w-3.5 h-3.5" />
+                  Update Status
+                </button>
+              )}
             </div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">
               {salesRecord.companyName}
@@ -90,16 +99,6 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {onUpdateStatus && (
-              <button
-                onClick={() => setShowUpdateModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
-                title="Update Status"
-              >
-                <PencilLine className="w-3.5 h-3.5" />
-                Update Status
-              </button>
-            )}
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
@@ -168,12 +167,18 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                 <DetailCard icon={Phone} label="Phone Numbers" value={salesRecord.mobile1 || salesRecord.phoneNumber} subValue={salesRecord.mobile2} />
                 <DetailCard icon={Mail} label="Email Address" value={salesRecord.email} />
                 <DetailCard icon={Globe} label="Website" value={salesRecord.website} />
+                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <DetailCard icon={Globe} label="Country" value={salesRecord.country} />
+                  <DetailCard icon={MapIcon} label="State" value={salesRecord.state} />
+                  <DetailCard icon={Landmark} label="City" value={salesRecord.cityDistrict} />
+                </div>
                 <div className="sm:col-span-2">
                   <DetailCard
                     icon={MapPin}
                     label="Address"
                     value={[salesRecord.address1, salesRecord.address2].filter(Boolean).join(', ')}
                     subValue={[salesRecord.cityDistrict, salesRecord.state, salesRecord.pincode, salesRecord.country].filter(Boolean).join(', ')}
+                    wrap
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -295,6 +300,11 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                   <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2 justify-end">
                     {salesRecord.allocatedTo?.fullName || <span className="text-slate-400 font-normal italic">Unassigned</span>}
                   </div>
+                  {salesRecord.coAssignees?.length > 0 && (
+                    <div className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      + {salesRecord.coAssignees.map((c) => c.fullName).join(', ')}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -369,7 +379,7 @@ const DetailCard = ({ icon: Icon, label, value, subValue, wrap }) => (
         {value || <span className="text-slate-400 font-normal italic">Not provided</span>}
       </p>
       {subValue && (
-        <p className="text-xs text-slate-500 truncate mt-0.5">{subValue}</p>
+        <p className={`text-xs text-slate-500 mt-0.5 ${wrap ? 'break-words' : 'truncate'}`}>{subValue}</p>
       )}
     </div>
   </div>

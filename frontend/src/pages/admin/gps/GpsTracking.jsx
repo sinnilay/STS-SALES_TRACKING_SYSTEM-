@@ -183,9 +183,9 @@ const GpsTracking = () => {
             </label>
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[36rem] divide-y divide-gray-100 dark:divide-slate-800">
+          <div className="flex-1 overflow-y-auto max-h-[24rem] sm:max-h-[36rem] divide-y divide-gray-100 dark:divide-slate-800">
             {filteredEmployees.length === 0 ? (
-              <div className="p-8 text-center text-sm text-gray-400">No employees found.</div>
+              <div className="p-5 sm:p-8 text-center text-sm text-gray-400">No employees found.</div>
             ) : (
               filteredEmployees.map((e) => (
                 <button
@@ -232,7 +232,7 @@ const GpsTracking = () => {
             <MapPin className="w-4 h-4 text-primary-500" />
             <h3 className="text-sm font-bold text-gray-700 dark:text-slate-200">View Location on Map</h3>
           </div>
-          <div className="h-[36rem]">
+          <div className="h-[22rem] sm:h-[36rem]">
             {locatedCount === 0 ? (
               <div className="w-full h-full flex flex-col items-center justify-center text-center text-sm text-gray-400 gap-2 p-6">
                 <MapPin className="w-8 h-8 text-gray-300 dark:text-slate-600" />
