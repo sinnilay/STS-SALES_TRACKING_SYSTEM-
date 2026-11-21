@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { X, Building2, MapPin, Phone, Mail, Globe, User, Clock, CheckCircle2, UserCircle2, ArrowRight, MessageSquare, Loader2, CalendarClock, Flag, Mail as MailIcon, FileText, Printer, Tag, UserCog } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Building2, MapPin, Phone, Mail, Globe, User, Clock, CheckCircle2, UserCircle2, ArrowRight, MessageSquare, Loader2, CalendarClock, Flag, Mail as MailIcon, FileText, Tag, UserCog, PencilLine, Map as MapIcon, Landmark } from 'lucide-react';
 import { getStatusMeta } from '../../../constants/stsPipeline';
+import Modal from '../../../components/Modal';
+import StatusPipelineModal from './StatusPipelineModal';
 
-const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, fetchHistory }) => {
+// `onUpdateStatus` gates the "Update Status" button shown beside the status badge —
+// passed by the admin Daily Report drawer and by the Tele Sales STS Report.
+const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, fetchHistory, onUpdateStatus, onUpdated, isAdmin }) => {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   const [historyReloadKey, setHistoryReloadKey] = useState(0);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   useEffect(() => {
     if (!salesRecord?.id || !fetchHistory) {
@@ -35,7 +41,12 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
 
   const currentStatus = salesRecord ? getStatusMeta(salesRecord.status) : null;
 
-  return (
+  // Rendered via portal, straight onto <body> — AdminLayout's top navbar is a
+  // z-indexed flex item of its own flex container, which (per the flex-item
+  // z-index rule) outranks any fixed-position content nested under it
+  // regardless of that content's own z-index. Portaling out from under it
+  // sidesteps that entirely, matching how `Modal` already does this.
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -44,8 +55,12 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
       />
 
       {/* Drawer */}
+      {/* Header is a fixed-height flex item and the body scrolls on its own —
+          `position: sticky` here previously sat inside an ancestor that also
+          carries the slide-in `transform`, which is a fragile combination and
+          could leave the header's top row scrolled out of view. */}
       <div
-        className={`fixed inset-y-0 right-0 w-full md:w-[600px] bg-white dark:bg-slate-900 shadow-2xl z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? 'translate-x-0' : 'translate-x-full'} overflow-y-auto border-l border-slate-200 dark:border-slate-800`}
+        className={`fixed inset-y-0 right-0 w-full md:w-[600px] bg-white dark:bg-slate-900 shadow-2xl z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-slate-200 dark:border-slate-800 flex flex-col`}
       >
         {!salesRecord ? (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-slate-400">
@@ -55,7 +70,7 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
         ) : (
         <>
         {/* Header */}
-        <div className="sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-10 px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+        <div className="shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
@@ -64,6 +79,16 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
               <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${currentStatus.badge}`} title={currentStatus.label}>
                 {salesRecord.status || 'New'}
               </span>
+              {onUpdateStatus && (
+                <button
+                  onClick={() => setShowUpdateModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors"
+                  title="Update Status"
+                >
+                  <PencilLine className="w-3.5 h-3.5" />
+                  Update Status
+                </button>
+              )}
             </div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">
               {salesRecord.companyName}
@@ -73,14 +98,18 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
               Created {new Date(salesRecord.createdAt).toLocaleDateString()}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 -mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
+        {/* Scrollable body — separate from the fixed-height header above */}
+        <div className="flex-1 overflow-y-auto">
         <div className="p-6 space-y-8">
 
           {/* Current Status */}
@@ -103,6 +132,62 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                   Next: {new Date(salesRecord.nextActionDate).toLocaleDateString()}
                 </div>
               )}
+            </div>
+          </section>
+
+          {/* Company Details — every field captured for this lead, grouped for scannability */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary-500" />
+              Company Details
+            </h3>
+
+            <div className="space-y-5">
+              {/* Lead meta — priority / source / lead by, as quick-scan chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                {salesRecord.priority && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                    <Flag className="w-3 h-3" /> {salesRecord.priority} Priority
+                  </span>
+                )}
+                {salesRecord.source && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20">
+                    <Tag className="w-3 h-3" /> {salesRecord.source}
+                  </span>
+                )}
+                {salesRecord.leadBy && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20">
+                    <UserCog className="w-3 h-3" /> Lead by {salesRecord.leadBy}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DetailCard icon={User} label="Contact Person" value={salesRecord.contactPerson} subValue={salesRecord.designation} />
+                <DetailCard icon={Phone} label="Phone Numbers" value={salesRecord.mobile1 || salesRecord.phoneNumber} subValue={salesRecord.mobile2} />
+                <DetailCard icon={Mail} label="Email Address" value={salesRecord.email} />
+                <DetailCard icon={Globe} label="Website" value={salesRecord.website} />
+                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <DetailCard icon={Globe} label="Country" value={salesRecord.country} />
+                  <DetailCard icon={MapIcon} label="State" value={salesRecord.state} />
+                  <DetailCard icon={Landmark} label="City" value={salesRecord.cityDistrict} />
+                </div>
+                <div className="sm:col-span-2">
+                  <DetailCard
+                    icon={MapPin}
+                    label="Address"
+                    value={[salesRecord.address1, salesRecord.address2].filter(Boolean).join(', ')}
+                    subValue={[salesRecord.cityDistrict, salesRecord.state, salesRecord.pincode, salesRecord.country].filter(Boolean).join(', ')}
+                    wrap
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <DetailCard icon={FileText} label="Business Description" value={salesRecord.businessDescription} wrap />
+                </div>
+                <div className="sm:col-span-2">
+                  <DetailCard icon={MessageSquare} label="Opening Comments" value={salesRecord.openingComments} wrap />
+                </div>
+              </div>
             </div>
           </section>
 
@@ -144,7 +229,7 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                       >
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${entryStatus.badge}`} title={entryStatus.label}>
-                            {entry.newStatus}
+                            {entry.newStatus === 'OTHER' ? (entry.otherStatusText || 'Other') : entry.newStatus}
                           </span>
                           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                             {new Date(entry.createdAt).toLocaleString()}
@@ -158,6 +243,7 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                           <span>
                             By <span className="font-semibold text-slate-700 dark:text-slate-300">{entry.employee?.fullName || entry.employee?.email || 'Unknown'}</span>
+                            {entry.updatedAsAdmin && <span className="ml-1 italic">(as Admin)</span>}
                           </span>
                           {entry.priority && (
                             <span className="flex items-center gap-1"><Flag className="w-3 h-3" /> {entry.priority}</span>
@@ -173,6 +259,13 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                           )}
                         </div>
 
+                        {(entry.convertedFor || entry.convertedPrice != null) && (
+                          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                            {entry.convertedFor && <span>Converted for: {entry.convertedFor}</span>}
+                            {entry.convertedPrice != null && <span>Price: {entry.convertedPrice}</span>}
+                          </div>
+                        )}
+
                         {entry.comment && (
                           <div className="mt-2 text-sm text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/40 rounded-lg px-3 py-2 border border-slate-100 dark:border-slate-700">
                             "{entry.comment}"
@@ -185,58 +278,6 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
               )}
             </section>
           )}
-
-          {/* Company Details — every field captured for this lead, grouped for scannability */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-primary-500" />
-              Company Details
-            </h3>
-
-            <div className="space-y-5">
-              {/* Lead meta — priority / source / lead by, as quick-scan chips */}
-              <div className="flex flex-wrap items-center gap-2">
-                {salesRecord.priority && (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
-                    <Flag className="w-3 h-3" /> {salesRecord.priority} Priority
-                  </span>
-                )}
-                {salesRecord.source && (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20">
-                    <Tag className="w-3 h-3" /> {salesRecord.source}
-                  </span>
-                )}
-                {salesRecord.leadBy && (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20">
-                    <UserCog className="w-3 h-3" /> Lead by {salesRecord.leadBy}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <DetailCard icon={User} label="Contact Person" value={salesRecord.contactPerson} subValue={salesRecord.designation} />
-                <DetailCard icon={UserCog} label="Owner Name" value={salesRecord.ownerName} />
-                <DetailCard icon={Phone} label="Phone Numbers" value={salesRecord.mobile1 || salesRecord.phoneNumber} subValue={salesRecord.mobile2} />
-                <DetailCard icon={Printer} label="Fax" value={salesRecord.fax} />
-                <DetailCard icon={Mail} label="Email Address" value={salesRecord.email} />
-                <DetailCard icon={Globe} label="Website" value={salesRecord.website} />
-                <div className="sm:col-span-2">
-                  <DetailCard
-                    icon={MapPin}
-                    label="Address"
-                    value={[salesRecord.address1, salesRecord.address2].filter(Boolean).join(', ')}
-                    subValue={[salesRecord.cityDistrict, salesRecord.state, salesRecord.pincode, salesRecord.country].filter(Boolean).join(', ')}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <DetailCard icon={FileText} label="Business Description" value={salesRecord.businessDescription} wrap />
-                </div>
-                <div className="sm:col-span-2">
-                  <DetailCard icon={MessageSquare} label="Opening Comments" value={salesRecord.openingComments} wrap />
-                </div>
-              </div>
-            </div>
-          </section>
 
           {/* Allocation & Ownership */}
           <section>
@@ -259,6 +300,11 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
                   <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2 justify-end">
                     {salesRecord.allocatedTo?.fullName || <span className="text-slate-400 font-normal italic">Unassigned</span>}
                   </div>
+                  {salesRecord.coAssignees?.length > 0 && (
+                    <div className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      + {salesRecord.coAssignees.map((c) => c.fullName).join(', ')}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -290,10 +336,35 @@ const StsDetailsDrawer = ({ isOpen, onClose, salesRecord, highlightTransition, f
           </section>
 
         </div>
+        </div>
         </>
         )}
       </div>
-    </>
+
+      {onUpdateStatus && (
+        <Modal
+          isOpen={showUpdateModal}
+          onClose={() => setShowUpdateModal(false)}
+          title="Log STS Update"
+          maxWidthClass="max-w-xl"
+        >
+          {salesRecord && (
+            <StatusPipelineModal
+              salesRecord={salesRecord}
+              isAdmin={isAdmin}
+              onClose={() => setShowUpdateModal(false)}
+              onUpdateStatus={onUpdateStatus}
+              onSuccess={() => {
+                setShowUpdateModal(false);
+                setHistoryReloadKey((k) => k + 1);
+                onUpdated?.();
+              }}
+            />
+          )}
+        </Modal>
+      )}
+    </>,
+    document.body
   );
 };
 
@@ -308,7 +379,7 @@ const DetailCard = ({ icon: Icon, label, value, subValue, wrap }) => (
         {value || <span className="text-slate-400 font-normal italic">Not provided</span>}
       </p>
       {subValue && (
-        <p className="text-xs text-slate-500 truncate mt-0.5">{subValue}</p>
+        <p className={`text-xs text-slate-500 mt-0.5 ${wrap ? 'break-words' : 'truncate'}`}>{subValue}</p>
       )}
     </div>
   </div>

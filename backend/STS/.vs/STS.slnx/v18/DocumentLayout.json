@@ -11,16 +11,24 @@
       "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\sts.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\filters\\requireactivesubscriptionattribute.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\filters\\requireactivesubscriptionattribute.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\migrations\\20260719172527_multitenancy.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\migrations\\20260719172527_multitenancy.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|c:\\users\\nilay singh\\desktop\\ideaspromowork\\backend\\sts\\sts\\migrations\\20260924145737_fixpendingchanges.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4BE9B84D-453E-F400-1383-6E9062AB50DF}|STS\\STS.csproj|solutionrelative:sts\\migrations\\20260924145737_fixpendingchanges.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -30,52 +38,48 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 9,
+          "SelectedChildIndex": 4,
           "Children": [
             {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{3ae79031-e1bc-11d0-8f78-00a0c9110057}"
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "20260719172527_MultiTenancy.cs",
+              "DocumentMoniker": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Migrations\\20260719172527_MultiTenancy.cs",
+              "RelativeDocumentMoniker": "STS\\Migrations\\20260719172527_MultiTenancy.cs",
+              "ToolTip": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Migrations\\20260719172527_MultiTenancy.cs",
+              "RelativeToolTip": "STS\\Migrations\\20260719172527_MultiTenancy.cs",
+              "ViewState": "AgIAAEwAAAAAAAAAAAAgwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-10-21T07:07:31.631Z"
             },
             {
-              "$type": "Bookmark",
-              "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:128:0:{13b12e3e-c1b4-4539-9371-4fe9a0d523fc}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{40ea2e6b-2121-4bb8-a43e-c83c04b51041}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "20260924145737_FixPendingChanges.cs",
+              "DocumentMoniker": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Migrations\\20260924145737_FixPendingChanges.cs",
+              "RelativeDocumentMoniker": "STS\\Migrations\\20260924145737_FixPendingChanges.cs",
+              "ToolTip": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Migrations\\20260924145737_FixPendingChanges.cs",
+              "RelativeToolTip": "STS\\Migrations\\20260924145737_FixPendingChanges.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-09-24T14:57:37.473Z"
             },
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "STS",
+              "Title": "STS.csproj",
               "DocumentMoniker": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\STS.csproj",
               "RelativeDocumentMoniker": "STS\\STS.csproj",
               "ToolTip": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\STS.csproj",
               "RelativeToolTip": "STS\\STS.csproj",
-              "ViewState": "AgIAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAkAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
               "WhenOpened": "2026-09-13T11:44:05.834Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 2,
               "Title": "RequireActiveSubscriptionAttribute.cs",
               "DocumentMoniker": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Filters\\RequireActiveSubscriptionAttribute.cs",
               "RelativeDocumentMoniker": "STS\\Filters\\RequireActiveSubscriptionAttribute.cs",
@@ -83,8 +87,7 @@
               "RelativeToolTip": "STS\\Filters\\RequireActiveSubscriptionAttribute.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-09-13T11:39:18.167Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-09-13T11:39:18.167Z"
             },
             {
               "$type": "Document",
@@ -94,27 +97,27 @@
               "RelativeDocumentMoniker": "STS\\appsettings.json",
               "ToolTip": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\appsettings.json",
               "RelativeToolTip": "STS\\appsettings.json",
-              "ViewState": "AgIAAAkAAAAAAAAAAAAAABoAAAABAAAAAAAAAA==",
+              "ViewState": "AgIAAAgAAAAAAAAAAAAkwBAAAAAEAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
               "WhenOpened": "2026-07-19T14:44:39.26Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "Program.cs",
               "DocumentMoniker": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Program.cs",
               "RelativeDocumentMoniker": "STS\\Program.cs",
               "ToolTip": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Program.cs",
               "RelativeToolTip": "STS\\Program.cs",
-              "ViewState": "AgIAAA4BAAAAAAAAAAAAAPsAAABDAAAAAAAAAA==",
+              "ViewState": "AgIAACYBAAAAAAAAAAAwwHYBAAA8AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-07-11T14:34:01.995Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 3,
               "Title": "AuthController.cs",
               "DocumentMoniker": "C:\\Users\\NILAY SINGH\\Desktop\\ideaspromowork\\backend\\STS\\STS\\Controllers\\AuthController.cs",
               "RelativeDocumentMoniker": "STS\\Controllers\\AuthController.cs",
@@ -122,18 +125,7 @@
               "RelativeToolTip": "STS\\Controllers\\AuthController.cs",
               "ViewState": "AgIAABAAAAAAAAAAAAAiwBkAAAAMAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-11T09:43:07.401Z",
-              "EditorCaption": ""
-            }
-          ]
-        },
-        {
-          "DockedWidth": 98,
-          "SelectedChildIndex": -1,
-          "Children": [
-            {
-              "$type": "Bookmark",
-              "Name": "ST:1:0:{e8034f19-ab72-4f06-83fd-f6832b41aa63}"
+              "WhenOpened": "2026-07-11T09:43:07.401Z"
             }
           ]
         }

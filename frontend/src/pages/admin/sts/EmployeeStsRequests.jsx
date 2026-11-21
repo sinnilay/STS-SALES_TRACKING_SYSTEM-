@@ -2,11 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ClipboardList, User, Building2, MapPin, Tag, Calendar, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { stsService } from '../../../services/stsService';
-import { employeeService } from '../../../services/employeeService';
 import Button from '../../../components/Button';
 import Spinner from '../../../components/Spinner';
 import Modal from '../../../components/Modal';
-import EmployeeDetailsDrawer from '../employees/EmployeeDetailsDrawer';
+import StsDetailsDrawer from './StsDetailsDrawer';
 import { getStatusMeta } from '../../../constants/stsPipeline';
 
 const TABS = ['Pending', 'Approved', 'Rejected', 'All'];
@@ -19,7 +18,7 @@ const EmployeeStsRequests = () => {
   const [requestToReject, setRequestToReject] = useState(null);
   const [rejectComment, setRejectComment] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
+  const [selectedStsDetails, setSelectedStsDetails] = useState(null);
 
   const fetchRequests = useCallback(async () => {
     setIsLoading(true);
@@ -37,14 +36,15 @@ const EmployeeStsRequests = () => {
     fetchRequests();
   }, [fetchRequests]);
 
-  const openEmployeeDetails = async (employeeId) => {
+  const openStsDetails = async (salesDataId) => {
+    if (!salesDataId) return;
     setIsDrawerOpen(true);
-    setSelectedEmployeeDetails(null);
+    setSelectedStsDetails(null);
     try {
-      const details = await employeeService.getEmployeeById(employeeId);
-      setSelectedEmployeeDetails(details);
+      const details = await stsService.getSalesDataById(salesDataId);
+      setSelectedStsDetails(details);
     } catch (error) {
-      toast.error('Failed to load employee details');
+      toast.error('Failed to load STS details');
       setIsDrawerOpen(false);
     }
   };
@@ -82,7 +82,7 @@ const EmployeeStsRequests = () => {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <ClipboardList className="w-6 h-6 text-primary-500" /> Employee STS Request
+          <ClipboardList className="w-6 h-6 text-primary-500" /> STS Request
         </h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
           Employees who found a duplicate while adding an STS and asked to be allotted it instead.
@@ -108,7 +108,7 @@ const EmployeeStsRequests = () => {
       {isLoading ? (
         <div className="py-12"><Spinner /></div>
       ) : requests.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 dark:border-slate-700 p-12 text-center text-sm text-gray-400">
+        <div className="rounded-xl border border-dashed border-gray-300 dark:border-slate-700 p-6 sm:p-12 text-center text-sm text-gray-400">
           No {activeTab !== 'All' ? activeTab.toLowerCase() : ''} requests.
         </div>
       ) : (
@@ -142,7 +142,7 @@ const EmployeeStsRequests = () => {
 
                     <button
                       type="button"
-                      onClick={() => openEmployeeDetails(r.requestedBy?.id)}
+                      onClick={() => openStsDetails(r.salesData?.id)}
                       className="w-full text-left inline-flex items-center gap-3 p-2.5 pr-4 rounded-lg border border-gray-100 dark:border-slate-700 bg-gray-50/70 dark:bg-slate-900/40 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
                     >
                       <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
@@ -151,7 +151,7 @@ const EmployeeStsRequests = () => {
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                           Requested by {r.requestedBy?.fullName || 'Unknown'}
-                          <span className="ml-1.5 text-xs font-normal text-primary-600 dark:text-primary-400">(view details)</span>
+                          <span className="ml-1.5 text-xs font-normal text-primary-600 dark:text-primary-400">(view STS details)</span>
                         </p>
                         <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
                           {r.requestedBy?.email} • {r.requestedBy?.employeeRole || '—'} • {r.requestedBy?.employeeDept || '—'}
@@ -167,7 +167,7 @@ const EmployeeStsRequests = () => {
 
                     {r.status !== 'Pending' && (
                       <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-                        {r.status} by {r.reviewedBy?.fullName || 'Admin'} on {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : '—'}
+                        {r.status} by {r.reviewedBy?.fullName || 'Founder'} on {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : '—'}
                         {r.reviewComment && <> — "{r.reviewComment}"</>}
                       </p>
                     )}
@@ -201,10 +201,11 @@ const EmployeeStsRequests = () => {
         </div>
       )}
 
-      <EmployeeDetailsDrawer
+      <StsDetailsDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        employee={selectedEmployeeDetails}
+        salesRecord={selectedStsDetails}
+        fetchHistory={stsService.getSalesHistory}
       />
 
       <Modal

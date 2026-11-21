@@ -6,6 +6,8 @@ export const getEffectiveDate = (record) => new Date(record.lastActionDate || re
 
 export const getMeetingDate = (record) => (record.meetingScheduledAt ? new Date(record.meetingScheduledAt) : null);
 
+export const getNextCallDate = (record) => (record.nextActionDate ? new Date(record.nextActionDate) : null);
+
 export const isSameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
@@ -21,7 +23,7 @@ export const relativeDayLabel = (date) => {
 
 // Compact "meeting tile" — deliberately small and square-ish so many fit inside the
 // scrollable meeting board, instead of a table row.
-const MeetingCard = ({ record, onView, onUpdateStatus, onViewImages }) => {
+const MeetingCard = ({ record, onView, onUpdateStatus, onViewImages, tag }) => {
   const statusMeta = getStatusMeta(record.status);
   const meta = { bar: statusMeta.solid, badge: statusMeta.badge, iconBg: statusMeta.badge };
   const meetingDate = getMeetingDate(record);
@@ -34,9 +36,9 @@ const MeetingCard = ({ record, onView, onUpdateStatus, onViewImages }) => {
           <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full truncate ${meta.badge}`}>
             {record.status || 'New'}
           </span>
-          {meetingDate && (
-            <span className="text-[10px] font-semibold text-gray-400 dark:text-slate-500 shrink-0">
-              {meetingDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+          {tag && (
+            <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
+              {tag}
             </span>
           )}
         </div>

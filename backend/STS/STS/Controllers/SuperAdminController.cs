@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using STS.Data;
 using STS.Models;
 using STS.Services;
@@ -14,11 +16,17 @@ namespace STS.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IAuthService _authService;
+        private readonly IEmailService _emailService;
+        private readonly IConfiguration _config;
+        private readonly ILogger<SuperAdminController> _logger;
 
-        public SuperAdminController(AppDbContext context, IAuthService authService)
+        public SuperAdminController(AppDbContext context, IAuthService authService, IEmailService emailService, IConfiguration config, ILogger<SuperAdminController> logger)
         {
             _context = context;
             _authService = authService;
+            _emailService = emailService;
+            _config = config;
+            _logger = logger;
         }
 
         [HttpGet("companies")]
@@ -268,11 +276,18 @@ namespace STS.Controllers
             };
             _context.Users.Add(adminUser);
 
-            // Update Trial Request status
+            // Update Trial Request status — the plaintext password only ever
+            // lives here until this moment, so grab it for the approval email
+            // then wipe it regardless of whether the email actually sends.
+            var loginPassword = req.PendingPassword;
             req.Status = "Approved";
             req.ProcessedAt = DateTime.UtcNow;
+            req.PendingPassword = null;
 
             await _context.SaveChangesAsync();
+
+            var loginUrl = (_config["FrontendBaseUrl"] ?? "https://sts.ideaspromotion.com").TrimEnd('/');
+            await _emailService.SendTrialApprovedEmailAsync(req, loginPassword, loginUrl);
 
             return Ok(new
             {
@@ -292,8 +307,11 @@ namespace STS.Controllers
             req.Status = "Rejected";
             req.RejectionReason = dto.Reason ?? "Not specified";
             req.ProcessedAt = DateTime.UtcNow;
+            req.PendingPassword = null;
 
             await _context.SaveChangesAsync();
+
+            await _emailService.SendTrialRejectedEmailAsync(req);
 
             return Ok(new { message = "Trial request rejected successfully." });
         }

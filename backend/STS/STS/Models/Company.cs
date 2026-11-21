@@ -14,7 +14,7 @@ namespace STS.Models
         public string TaxId { get; set; } = string.Empty;
         public string Website { get; set; } = string.Empty;
         public string Industry { get; set; } = string.Empty;
-        
+        public string? LogoUrl { get; set; }
         
         public DateTime SubscriptionExpiry { get; set; }
         public bool IsTrial { get; set; } = false;

@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import Pagination from '../../../components/Pagination';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Eye, ClipboardList, Upload, Download, Pencil, Trash2, AlertTriangle, UserMinus } from 'lucide-react';
+import { Plus, Search, ClipboardList, Upload, Download, AlertTriangle, UserMinus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Papa from 'papaparse';
+import { State, City } from 'country-state-city';
 import { stsService } from '../../../services/stsService';
-import Table from '../../../components/Table';
+import StsRecordsView from './StsRecordsView';
 import Button from '../../../components/Button';
 import Spinner from '../../../components/Spinner';
 import Modal from '../../../components/Modal';
@@ -15,11 +17,25 @@ import StsDetailsDrawer from './StsDetailsDrawer';
 import EditStsForm from './EditStsForm';
 import AssignRecordsForm from './AssignRecordsForm';
 import DeAssignRecordsForm from './DeAssignRecordsForm';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
+
+const PAGE_SIZE = 25;
+
+const selectClass = 'block w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 text-sm transition-colors duration-300 disabled:opacity-60 disabled:cursor-not-allowed';
 
 const StsList = () => {
+  // Only the current page is held in memory; filtering and paging happen on the server.
   const [sales, setSales] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [grandTotal, setGrandTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [profileType, setProfileType] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
+  const [page, setPage] = useState(1);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isDeAssignModalOpen, setIsDeAssignModalOpen] = useState(false);
@@ -30,21 +46,59 @@ const StsList = () => {
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchSales = async () => {
-    setIsLoading(true);
+  const debouncedSearch = useDebouncedValue(searchTerm.trim());
+
+  // Full India state list; cities load for the selected state.
+  const stateOptions = useMemo(() => State.getStatesOfCountry('IN'), []);
+  const stateIso = stateOptions.find((st) => st.name === stateFilter)?.isoCode;
+  const cityOptions = useMemo(
+    () => (stateIso
+      ? [...new Set(City.getCitiesOfState('IN', stateIso).map((c) => c.name))].sort((a, b) => a.localeCompare(b))
+      : []),
+    [stateIso]
+  );
+
+  const filters = useMemo(() => ({
+    search: debouncedSearch || undefined,
+    profileType: profileType || undefined,
+    city: cityFilter || undefined,
+    // State only narrows the city list; the server also matches records whose city is in
+    // the state, since many imported records have a city but no state filled in.
+    state: !cityFilter && stateFilter ? stateFilter : undefined,
+    stateCities: !cityFilter && stateFilter ? cityOptions : undefined,
+  }), [debouncedSearch, profileType, cityFilter, stateFilter, cityOptions]);
+
+  // Ignore responses that arrive after a newer request was sent (fast typing / paging).
+  const latestRequest = useRef(0);
+
+  const fetchSales = useCallback(async () => {
+    const requestId = ++latestRequest.current;
+    setIsFetching(true);
     try {
-      const data = await stsService.getAllSales();
-      setSales(data);
+      const data = await stsService.querySales({ ...filters, page, pageSize: PAGE_SIZE });
+      if (requestId !== latestRequest.current) return;
+      setSales(data.items);
+      setTotal(data.total);
+      setGrandTotal(data.grandTotal);
+      if (data.page !== page) setPage(data.page);
     } catch (error) {
-      toast.error('Failed to fetch sales records');
+      if (requestId === latestRequest.current) toast.error('Failed to fetch sales records');
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequest.current) {
+        setIsLoading(false);
+        setIsFetching(false);
+      }
     }
-  };
+  }, [filters, page]);
 
   useEffect(() => {
     fetchSales();
-  }, []);
+  }, [fetchSales]);
+
+  // A new search starts back on page 1.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const handleDelete = async () => {
     if (!recordToDelete) return;
@@ -61,25 +115,34 @@ const StsList = () => {
     }
   };
 
-  const filteredSales = sales.filter((sale) => {
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      return (
-        (sale.companyName && sale.companyName.toLowerCase().includes(term)) ||
-        (sale.employee?.fullName && sale.employee.fullName.toLowerCase().includes(term)) ||
-        (sale.employee?.email && sale.employee.email.toLowerCase().includes(term))
-      );
-    }
-    return true;
-  });
+  const hasActiveFilters = !!(searchTerm || profileType || stateFilter || cityFilter);
 
-  const handleExport = () => {
-    if (filteredSales.length === 0) {
+  const clearFilters = () => {
+    setSearchTerm('');
+    setProfileType('');
+    setStateFilter('');
+    setCityFilter('');
+    setPage(1);
+  };
+
+  const handleExport = async () => {
+    if (total === 0) {
       toast.error('No records to export');
       return;
     }
 
-    const rows = filteredSales.map((r) => ({
+    setIsExporting(true);
+    let records;
+    try {
+      records = (await stsService.querySales({ ...filters, all: true })).items;
+    } catch (error) {
+      toast.error('Failed to export records');
+      return;
+    } finally {
+      setIsExporting(false);
+    }
+
+    const rows = records.map((r) => ({
       'Profile ID': r.companyID || '',
       'Company Name': r.companyName || '',
       'Contact Person': r.contactPerson || '',
@@ -103,6 +166,9 @@ const StsList = () => {
       'Business Description': r.businessDescription || '',
       'Opening Comments': r.openingComments || '',
       'Status': r.status || 'New',
+      'Service Taken': r.serviceTaken || '',
+      'Service Price': r.servicePrice != null ? r.servicePrice : '',
+      'Service Date': r.serviceDate ? new Date(r.serviceDate).toLocaleDateString() : '',
       'Created Date': r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '',
       'Last Action Date': r.lastActionDate ? new Date(r.lastActionDate).toLocaleDateString() : '',
       'Next Action Date': r.nextActionDate ? new Date(r.nextActionDate).toLocaleDateString() : '',
@@ -128,61 +194,24 @@ const StsList = () => {
     toast.success(`Exported ${rows.length} record${rows.length !== 1 ? 's' : ''}`);
   };
 
-  const columns = [
-    { 
-      header: 'Sr No.', 
-      render: (row, index) => index + 1 
-    },
-    { header: 'Profile ID', accessor: 'companyID' },
-    { 
-      header: 'Company Name', 
-      render: (row) => (
-        <a href="#" className="text-blue-600 hover:underline">{row.companyName}</a>
-      )
-    },
-    { header: 'Source', render: (row) => row.source || 'N/A' },
-    { 
-      header: 'Created Date', 
-      render: (row) => new Date(row.createdAt).toLocaleDateString()
-    },
-    { 
-      header: 'Last Action', 
-      render: (row) => row.lastActionDate ? new Date(row.lastActionDate).toLocaleDateString() : 'N/A'
-    },
-    { 
-      header: 'Status', 
-      render: (row) => (
-        <span className="text-blue-600 font-medium">
-          {row.status || 'New'}
-        </span>
-      )
-    },
-    {
-      header: 'Allotted To',
-      render: (row) => {
-        const isAllocatedToTelecaller = row.allocatedTo?.employeeRole === 'Tele Sales';
-        const salesTeamName = row.allocatedTo && !isAllocatedToTelecaller ? row.allocatedTo.fullName : 'N/A';
-        const telecallerTeamName = isAllocatedToTelecaller
-          ? row.allocatedTo.fullName
-          : (row.teleExecutive ? row.teleExecutive.fullName : 'N/A');
-        return (
-          <div className="text-xs space-y-1">
-            <div><span className="font-semibold text-gray-500">Sales Team:</span> {salesTeamName}</div>
-            <div><span className="font-semibold text-gray-500">Telecaller Team:</span> {telecallerTeamName}</div>
-          </div>
-        );
-      }
-    },
-  ];
-
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">STS Records</h2>
+      <div className="flex flex-col min-[1360px]:flex-row justify-between items-start min-[1360px]:items-center gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center flex-wrap gap-3">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">STS Records</h2>
+            {!isLoading && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-50 dark:bg-primary-500/10 text-xs font-bold text-primary-700 dark:text-primary-400">
+                Total Records: {grandTotal.toLocaleString()}
+                {total !== grandTotal && (
+                  <span className="font-semibold text-primary-600/70 dark:text-primary-400/70">· Showing {total.toLocaleString()}</span>
+                )}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">View and manage all sales tracking records.</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="grid grid-cols-2 w-full sm:w-auto sm:flex sm:flex-wrap gap-2 sm:gap-3 [&_button]:whitespace-nowrap">
           <Button variant="secondary" onClick={() => setIsAssignModalOpen(true)}>
             <ClipboardList className="w-4 h-4 mr-2" />
             Assign
@@ -195,12 +224,12 @@ const StsList = () => {
             <Upload className="w-4 h-4 mr-2" />
             Import CSV
           </Button>
-          <Button variant="secondary" onClick={handleExport}>
+          <Button variant="secondary" onClick={handleExport} isLoading={isExporting}>
             <Download className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
-          <Link to="/admin/sts/add">
-            <Button variant="primary">
+          <Link to="/admin/sts/add" className="col-span-2 sm:col-auto">
+            <Button variant="primary" className="w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               Add Record
             </Button>
@@ -209,17 +238,61 @@ const StsList = () => {
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 transition-colors duration-300">
-        <div className="relative max-w-md">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400 dark:text-slate-500" />
+        <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+          <div className="relative w-full xl:max-w-md">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400 dark:text-slate-500" />
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-sm transition-colors duration-300"
+              placeholder="Search by company, profile ID or employee email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 text-sm transition-colors duration-300"
-            placeholder="Search by title or employee email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full xl:w-auto xl:flex-1">
+            <select
+              className={selectClass}
+              value={profileType}
+              onChange={(e) => { setProfileType(e.target.value); setPage(1); }}
+            >
+              <option value="">All Profile IDs</option>
+              <option value="NC">NC Profiles</option>
+              <option value="EC">EC Profiles</option>
+            </select>
+            <select
+              className={selectClass}
+              value={stateFilter}
+              onChange={(e) => { setStateFilter(e.target.value); setCityFilter(''); setPage(1); }}
+            >
+              <option value="">All States</option>
+              {stateOptions.map((st) => (
+                <option key={st.isoCode} value={st.name}>{st.name}</option>
+              ))}
+            </select>
+            <select
+              className={selectClass}
+              value={cityFilter}
+              disabled={!stateIso}
+              onChange={(e) => { setCityFilter(e.target.value); setPage(1); }}
+            >
+              <option value="">{stateIso ? 'All Cities' : 'Select a state first'}</option>
+              {cityOptions.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+            >
+              <X className="w-4 h-4" />
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -228,56 +301,17 @@ const StsList = () => {
           <Spinner />
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-colors duration-300">
-          <Table
-            columns={columns}
-            data={filteredSales}
-            onRowClick={(row) => setSelectedRecordForDetails(row)}
-            renderActions={(row) => {
-              const isAllocated = !!(row.allocatedTo || row.teleExecutive || row.marketingExecutive);
-              return (
-                <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => setSelectedRecordForStatus(row)}
-                    className="p-1.5 rounded-lg transition-colors text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
-                    title="View Status"
-                  >
-                    <Eye className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setSelectedRecordForEdit(row)}
-                    className="p-1.5 rounded-lg transition-colors text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10"
-                    title="Edit Details"
-                  >
-                    <Pencil className="w-5 h-5" />
-                  </button>
-                  <div className="relative group/allocate">
-                    <button
-                      onClick={() => !isAllocated && setSelectedRecordForAllocate(row)}
-                      disabled={isAllocated}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        isAllocated
-                          ? 'text-gray-300 dark:text-slate-600 cursor-not-allowed'
-                          : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
-                      }`}
-                    >
-                      <ClipboardList className="w-5 h-5" />
-                    </button>
-                    <div className="pointer-events-none absolute right-0 bottom-full mb-1.5 z-10 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover/allocate:opacity-100">
-                      {isAllocated ? 'Already Allocated' : 'Assign Action'}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setRecordToDelete(row)}
-                    className="p-1.5 rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
-                    title="Delete Record"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              );
-            }}
+        <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-all duration-300 ${isFetching ? 'opacity-60 pointer-events-none' : ''}`}>
+          <StsRecordsView
+            rows={sales}
+            startIndex={(page - 1) * PAGE_SIZE}
+            onOpen={setSelectedRecordForDetails}
+            onStatus={setSelectedRecordForStatus}
+            onEdit={setSelectedRecordForEdit}
+            onAllocate={setSelectedRecordForAllocate}
+            onDelete={setRecordToDelete}
           />
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>
       )}
 
@@ -319,7 +353,7 @@ const StsList = () => {
         isOpen={isDeAssignModalOpen}
         onClose={() => setIsDeAssignModalOpen(false)}
         title="De-Assign STS Records"
-        maxWidthClass="max-w-4xl"
+        maxWidthClass="max-w-5xl"
       >
         {isDeAssignModalOpen && (
           <DeAssignRecordsForm
@@ -379,6 +413,7 @@ const StsList = () => {
         {selectedRecordForStatus && (
           <StatusPipelineModal
             salesRecord={selectedRecordForStatus}
+            isAdmin
             onClose={() => setSelectedRecordForStatus(null)}
             onSuccess={() => {
               setSelectedRecordForStatus(null);
@@ -394,6 +429,17 @@ const StsList = () => {
         onClose={() => setSelectedRecordForDetails(null)}
         salesRecord={selectedRecordForDetails}
         fetchHistory={stsService.getSalesHistory}
+        onUpdateStatus={stsService.updateSalesStatus}
+        onUpdated={async () => {
+          if (!selectedRecordForDetails) return;
+          try {
+            const record = await stsService.getSalesDataById(selectedRecordForDetails.id);
+            setSelectedRecordForDetails(record);
+          } catch (error) {
+            toast.error('Failed to refresh STS details');
+          }
+          fetchSales();
+        }}
       />
 
       {/* Delete Confirmation */}

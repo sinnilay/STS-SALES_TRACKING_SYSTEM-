@@ -23,6 +23,22 @@ namespace STS.Models
         public DateTime? DateOfBirth { get; set; }
         public string? ProfilePicturePath { get; set; } // Relative filename stored under the server's profilepics folder
 
+        // Bank information
+        public string BankName { get; set; } = string.Empty;
+        public string BankBranch { get; set; } = string.Empty;
+        public string AccountHolderName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string PanCardNo { get; set; } = string.Empty;
+
+        // Local reference
+        public string LocalRefName { get; set; } = string.Empty;
+        public string LocalRefRelation { get; set; } = string.Empty;
+        public string LocalRefContact { get; set; } = string.Empty;
+
+        // KYC documents — filenames stored under the server's (non-public) employeedocs folder
+        public string? AadhaarDocPath { get; set; }
+        public string? PanDocPath { get; set; }
+
         public int? CompanyId { get; set; } // Null for SuperAdmin
         public Company? Company { get; set; }
 

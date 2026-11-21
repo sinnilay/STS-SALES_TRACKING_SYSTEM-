@@ -7,7 +7,7 @@ const SubscriptionExpired = () => {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-950 via-rose-950/40 to-slate-950 p-6">
-      <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-rose-200/60 dark:border-rose-900/60 p-10 text-center relative overflow-hidden">
+      <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-rose-200/60 dark:border-rose-900/60 p-6 sm:p-10 text-center relative overflow-hidden">
         <div className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-12 w-40 h-40 bg-rose-500/20 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-rose-600 to-red-700 flex items-center justify-center text-white mx-auto mb-6 shadow-xl shadow-rose-500/30 border border-white/20 relative">

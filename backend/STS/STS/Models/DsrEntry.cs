@@ -28,6 +28,18 @@ namespace STS.Models
         public string? CcTo { get; set; }
         public string? Subject { get; set; }
 
+        // Captured only when NewStatus is one of StsPipeline.ConvertedStatuses.
+        public string? ConvertedFor { get; set; }
+        public decimal? ConvertedPrice { get; set; }
+
+        // Captured only when NewStatus == "OTHER" — the free-text status the
+        // updater typed in place of picking one of the fixed codes.
+        public string? OtherStatusText { get; set; }
+
+        // True when a company admin logged this update using their own admin
+        // identity rather than on behalf of one of the selected employees.
+        public bool UpdatedAsAdmin { get; set; }
+
         public DateTime ReportDate { get; set; } = DateTime.UtcNow.Date;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

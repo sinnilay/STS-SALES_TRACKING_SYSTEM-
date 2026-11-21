@@ -63,6 +63,9 @@ namespace STS.Migrations
                     b.Property<bool>("IsTrial")
                         .HasColumnType("bit");
 
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -130,6 +133,12 @@ namespace STS.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ConvertedFor")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("ConvertedPrice")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -142,6 +151,9 @@ namespace STS.Migrations
 
                     b.Property<DateTime?>("NextCallMeetingDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("OtherStatusText")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PreviousStatus")
                         .IsRequired()
@@ -162,6 +174,9 @@ namespace STS.Migrations
 
                     b.Property<int>("TenantCompanyId")
                         .HasColumnType("int");
+
+                    b.Property<bool>("UpdatedAsAdmin")
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -528,6 +543,9 @@ namespace STS.Migrations
 
                     b.Property<string>("OwnerName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PendingPassword")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ProcessedAt")

@@ -115,7 +115,7 @@ const TrialExpiryBanner = () => {
       {/* Login Welcome / Expiry Popup Dialog */}
       {showPopup && (
         <div className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl border border-slate-200 dark:border-slate-800 text-center relative overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-md p-5 sm:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 text-center relative overflow-hidden">
             
             {/* Background glow */}
             <div className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-12 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>

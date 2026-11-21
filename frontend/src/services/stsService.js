@@ -1,8 +1,22 @@
 import api from './api';
 
 export const stsService = {
-  getAllSales: async () => {
-    const response = await api.get('/Admin/sales');
+  // Server-side filtered + paged list: { items, total, grandTotal, page, pageSize }.
+  // Pass { all: true } to get every match (CSV export).
+  querySales: async (params) => {
+    const response = await api.post('/Admin/sales/query', params);
+    return response.data;
+  },
+
+  getSalesStats: async () => {
+    const response = await api.get('/Admin/sales/stats');
+    return response.data;
+  },
+
+  // Slim rows for the bulk Assign / De-Assign pickers. Omit `allocated` to get every record.
+  getSalesLite: async (allocated) => {
+    const query = allocated === undefined ? '' : `?allocated=${allocated}`;
+    const response = await api.get(`/Admin/sales/lite${query}`);
     return response.data;
   },
 
@@ -61,8 +75,9 @@ export const stsService = {
     return response.data;
   },
 
-  bulkDeallocateSalesData: async ({ salesIds, reason }) => {
-    const response = await api.put('/Admin/sales/bulk-deallocate', { salesIds, reason });
+  // employeeIds: only take these people off the records (others keep them); omit to clear all holders.
+  bulkDeallocateSalesData: async ({ salesIds, reason, employeeIds }) => {
+    const response = await api.put('/Admin/sales/bulk-deallocate', { salesIds, reason, employeeIds });
     return response.data;
   },
 

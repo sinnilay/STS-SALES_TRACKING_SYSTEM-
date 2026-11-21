@@ -60,11 +60,11 @@ const SiteImagesGallery = () => {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-800 p-8 border border-gray-100 dark:border-slate-700 shadow-sm transition-colors duration-300">
+      <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-800 p-5 sm:p-8 border border-gray-100 dark:border-slate-700 shadow-sm transition-colors duration-300">
         <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-primary-500/10 rounded-full blur-2xl"></div>
         <div className="relative z-10 flex items-start justify-between flex-wrap gap-4">
           <div>
-            <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
               Site Visit Gallery
               <Images className="w-7 h-7 text-primary-500" />
             </h2>
@@ -103,7 +103,7 @@ const SiteImagesGallery = () => {
       {isLoading ? (
         <div className="py-12"><Spinner /></div>
       ) : groups.length === 0 ? (
-        <div className="bg-white dark:bg-slate-800 p-12 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col items-center justify-center text-center transition-colors duration-300">
+        <div className="bg-white dark:bg-slate-800 p-6 sm:p-12 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col items-center justify-center text-center transition-colors duration-300">
           <div className="w-16 h-16 bg-gray-50 dark:bg-slate-700/50 rounded-2xl flex items-center justify-center border border-gray-100 dark:border-slate-600 mb-4">
             <Images className="w-8 h-8 text-gray-400 dark:text-slate-500" />
           </div>

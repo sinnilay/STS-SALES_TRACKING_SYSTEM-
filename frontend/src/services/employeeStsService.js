@@ -41,8 +41,8 @@ export const employeeStsService = {
     return response.data;
   },
 
-  scheduleMeeting: async (id, meetingMode) => {
-    const response = await api.put(`/Employee/sales/${id}/schedule-meeting`, { meetingMode });
+  bulkAllocateToFieldSales: async (salesIds, employeeId) => {
+    const response = await api.put('/Employee/sales/allocate-bulk', { salesIds, employeeId });
     return response.data;
   },
 

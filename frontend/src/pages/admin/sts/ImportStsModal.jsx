@@ -228,7 +228,7 @@ const ImportStsModal = ({ onClose, onSuccess }) => {
 
           {/* Upload Dropzone */}
           <div
-            className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+            className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-5 sm:p-8 text-center hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />

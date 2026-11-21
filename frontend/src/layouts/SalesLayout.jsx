@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { LayoutDashboard, LogOut, Menu, X, Sun, Moon, BarChart3, Building2, Sparkles, ShieldCheck, UserCircle, ClipboardList, CalendarClock, History, FileText } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, X, Sun, Moon, BarChart3, Building2, Sparkles, ShieldCheck, UserCircle, ClipboardList, CalendarClock, History, FileText, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import api from '../services/api';
 import TrialExpiryBanner from '../components/TrialExpiryBanner';
+import ProfileMenu from '../components/ProfileMenu';
+import AppFooter from '../components/AppFooter';
+import SupportDesk from '../components/SupportDesk';
 import GpsBroadcaster from '../components/GpsBroadcaster';
 import { profileService } from '../services/profileService';
 
@@ -13,8 +16,16 @@ const SalesLayout = () => {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('salesSidebarCollapsed') === '1'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('salesSidebarCollapsed', collapsed ? '1' : '0'); } catch { /* ignore */ }
+  }, [collapsed]);
   const [liveEnabledModules, setLiveEnabledModules] = useState(user?.enabledModules);
   const [companyName, setCompanyName] = useState(user?.companyName || 'Property Workspace');
+  const [companyLogoUrl, setCompanyLogoUrl] = useState(null);
   const [myProfile, setMyProfile] = useState(null);
 
   useEffect(() => {
@@ -33,6 +44,10 @@ const SalesLayout = () => {
           const cName = response.data.name || response.data.Name;
           if (cName) {
             setCompanyName(cName);
+          }
+          const logo = response.data.logoUrl || response.data.LogoUrl;
+          if (logo !== undefined) {
+            setCompanyLogoUrl(logo || null);
           }
         }
       } catch (e) {
@@ -75,8 +90,7 @@ const SalesLayout = () => {
       navItems.push({ name: 'STS Report', path: '/sales/sts/report', icon: ClipboardList });
     }
     if (myProfile?.employeeRole === 'Field Sales' || myProfile?.employeeRole === 'Tele Sales') {
-      navItems.push({ name: 'Current Meetings', path: '/sales/meetings/current', icon: CalendarClock });
-      navItems.push({ name: 'Past Meetings', path: '/sales/meetings/past', icon: History });
+      navItems.push({ name: 'My Meetings', path: '/sales/meetings', icon: CalendarClock });
     }
     navItems.push({ name: 'My DSR', path: '/sales/dsr', icon: FileText });
   }
@@ -87,37 +101,57 @@ const SalesLayout = () => {
     <div className="min-h-screen flex bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
       {isGpsEnabled && <GpsBroadcaster />}
       {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 fixed inset-y-0 z-10 transition-colors duration-300">
-        <div className="p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain dark:brightness-150" />
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Sales Portal</h1>
+      <aside className={`hidden md:flex flex-col ${collapsed ? 'w-20' : 'w-64'} bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 fixed inset-y-0 z-10 transition-all duration-300`}>
+        <div className={`${collapsed ? 'px-3 py-5 flex-col gap-3' : 'p-6'} flex items-center justify-between`}>
+          <div className="flex items-center gap-3 min-w-0">
+            {companyLogoUrl ? (
+              <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-gray-200 dark:border-slate-700 flex items-center justify-center p-1 shadow-sm shrink-0">
+                <img src={companyLogoUrl} alt={companyName} className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain dark:brightness-150 shrink-0" />
+            )}
+            {!collapsed && (
+              <div className="min-w-0">
+                <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight truncate" title={companyName}>{companyName || 'Sales Portal'}</h1>
+                <p className="text-xs font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-widest">Sales Portal</p>
+              </div>
+            )}
           </div>
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="p-1.5 rounded-lg text-gray-400 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors shrink-0"
+          >
+            {collapsed ? <ChevronsRight className="w-5 h-5" /> : <ChevronsLeft className="w-5 h-5" />}
+          </button>
         </div>
         
-        <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
+        <nav className={`flex-1 ${collapsed ? 'px-3' : 'px-4'} py-4 space-y-2 overflow-y-auto`}>
           {navItems.map((item) => (
             <NavLink
               key={item.name}
               to={item.path}
               end
+              title={collapsed ? item.name : undefined}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all duration-200 ${
+                `flex items-center ${collapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-xl font-medium transition-all duration-200 ${
                   isActive
                     ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 shadow-sm'
                     : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700/50 hover:text-gray-900 dark:hover:text-slate-200'
                 }`
               }
             >
-              <item.icon className="w-5 h-5" />
-              {item.name}
+              <item.icon className="w-5 h-5 shrink-0" />
+              {!collapsed && item.name}
             </NavLink>
           ))}
         </nav>
         
-        <div className="p-4 border-t border-gray-200 dark:border-slate-700">
-          <div className="flex items-center justify-between mb-4 px-3">
-            <span className="text-sm font-medium text-gray-500 dark:text-slate-400">Theme</span>
+        <div className={`${collapsed ? 'p-3' : 'p-4'} border-t border-gray-200 dark:border-slate-700`}>
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between px-3'} mb-4`}>
+            {!collapsed && <span className="text-sm font-medium text-gray-500 dark:text-slate-400">Theme</span>}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
@@ -126,40 +160,33 @@ const SalesLayout = () => {
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
           </div>
-          <NavLink to="/sales/profile" className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700/50 transition-colors">
-            <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-bold shadow-md overflow-hidden">
-              {myProfile?.profilePictureUrl ? (
-                <img src={myProfile.profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                user?.email?.charAt(0).toUpperCase() || 'S'
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
-                {myProfile?.fullName || user?.role || 'Sales'}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
-            </div>
-          </NavLink>
+          <SupportDesk compact={collapsed} />
           <button
             onClick={handleLogout}
-            className="mt-3 flex w-full items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            title="Logout"
+            className="flex w-full items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
           >
             <LogOut className="w-4 h-4" />
-            Logout
+            {!collapsed && 'Logout'}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col md:pl-64 min-w-0 transition-all duration-300">
+      <div className={`flex-1 flex flex-col ${collapsed ? 'md:pl-20' : 'md:pl-64'} min-w-0 transition-all duration-300`}>
         <TrialExpiryBanner />
         {/* Mobile Navbar */}
         <header className="md:hidden bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-20 transition-colors duration-300">
           <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="Logo" className="h-7 w-auto object-contain dark:brightness-150" />
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Sales</h1>
+            <div className="flex items-center gap-2 min-w-0">
+              {companyLogoUrl ? (
+                <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-gray-200 dark:border-slate-700 flex items-center justify-center p-0.5 shadow-sm shrink-0">
+                  <img src={companyLogoUrl} alt={companyName} className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <img src="/logo.png" alt="Logo" className="h-7 w-auto object-contain dark:brightness-150 shrink-0" />
+              )}
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate max-w-[180px]">{companyName || 'Sales'}</h1>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -201,6 +228,7 @@ const SalesLayout = () => {
                 </NavLink>
               ))}
               <div className="pt-4 mt-4 border-t border-gray-200 dark:border-slate-700">
+                 <SupportDesk />
                  <button
                   onClick={handleLogout}
                   className="flex w-full items-center justify-center gap-2 px-4 py-3 font-medium text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
@@ -216,23 +244,16 @@ const SalesLayout = () => {
         {/* Ultra-Premium Executive Header Bar */}
         <header className="hidden md:flex bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 sticky top-0 z-20 px-8 py-4 justify-between items-center transition-all shadow-sm">
           
-          {/* Left Info Box */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 border border-white/20">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Sales Operational Node</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800">LIVE</span>
-              </div>
-              <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">Pipeline Performance & Tracking</p>
-            </div>
-          </div>
+          {/* Spacer keeps the company banner centered */}
+          <div className="w-40" />
 
           {/* Centered Large Professional Company Banner */}
           <div className="flex items-center gap-3 px-8 py-2.5 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/90 to-blue-50/90 dark:from-blue-950/80 dark:via-indigo-950/80 dark:to-blue-950/80 border-2 border-blue-200/80 dark:border-blue-800/80 shadow-md shadow-blue-500/5 transform hover:scale-[1.01] transition-transform">
-            <Sparkles className="w-4.5 h-4.5 text-amber-500 dark:text-amber-400 animate-pulse" />
+            {companyLogoUrl ? (
+              <img src={companyLogoUrl} alt={companyName} className="h-6 max-w-[90px] object-contain shrink-0" />
+            ) : (
+              <Sparkles className="w-4.5 h-4.5 text-amber-500 dark:text-amber-400 animate-pulse" />
+            )}
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Welcome to</span>
               <span className="text-lg sm:text-xl font-black tracking-tight uppercase text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 dark:from-cyan-400 dark:via-blue-300 dark:to-indigo-400 drop-shadow-sm px-1">
@@ -245,19 +266,21 @@ const SalesLayout = () => {
 
           {/* Right Status Badge */}
           <div className="flex items-center gap-3">
-            <div className="px-3.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-black flex items-center gap-2 shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              SYSTEM ONLINE
-            </div>
+            <ProfileMenu
+              name={myProfile?.fullName}
+              email={user?.email}
+              roleLabel={myProfile?.employeeRole || 'Employee'}
+              avatarUrl={myProfile?.profilePictureUrl}
+              profilePath="/sales/profile"
+              onLogout={handleLogout}
+            />
           </div>
         </header>
 
         <main className="flex-1 p-4 md:p-8">
           <Outlet />
         </main>
+        <AppFooter />
       </div>
     </div>
   );

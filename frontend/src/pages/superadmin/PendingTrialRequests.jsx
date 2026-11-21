@@ -77,7 +77,7 @@ const PendingTrialRequests = () => {
     <div className="space-y-6 animate-fade-in">
       
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-8 shadow-2xl border border-indigo-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-8 shadow-2xl border border-indigo-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="flex items-center gap-4 relative z-10">
           <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shadow-inner">
@@ -94,7 +94,7 @@ const PendingTrialRequests = () => {
                 </span>
               )}
             </div>
-            <h2 className="text-3xl font-black tracking-tight">Pending Trial Requests</h2>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">Pending Trial Requests</h2>
             <p className="text-indigo-200 text-sm font-medium">Review client submissions, verify details, and approve 7-day trial workspaces.</p>
           </div>
         </div>

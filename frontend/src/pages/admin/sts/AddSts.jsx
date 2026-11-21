@@ -11,9 +11,27 @@ import { settingsService } from '../../../services/settingsService';
 import Input from '../../../components/Input';
 import Button from '../../../components/Button';
 import Modal from '../../../components/Modal';
+import LocationFields from '../../../components/LocationFields';
+import { getCitySuggestions } from '../../../utils/cities';
 import StsDetailsDrawer from './StsDetailsDrawer';
 import ImportStsModal from './ImportStsModal';
 import { getStatusMeta } from '../../../constants/stsPipeline';
+
+// Phone-style fields take exactly 10 digits and pincode exactly 6 — non-digits are
+// blocked as they are typed or pasted, and the length is checked on submit.
+const digitsRule = (length, label) => ({
+  pattern: {
+    value: new RegExp(`^[0-9]{${length}}$`),
+    message: `${label} must be exactly ${length} digits`,
+  },
+});
+
+const blockNonDigits = (e) => {
+  if (e.data && /\D/.test(e.data)) e.preventDefault();
+};
+
+const F_LABEL = 'block text-xs font-semibold text-gray-600 dark:text-slate-300 mb-1.5';
+const F_INPUT = 'w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50/60 dark:bg-slate-900 text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 transition focus:outline-none focus:bg-white focus:border-primary-500 focus:ring-4 focus:ring-primary-500/15';
 
 const AddSts = () => {
   const { user } = useAuth();
@@ -22,6 +40,7 @@ const AddSts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('');
+  const [selectedCityFilter, setSelectedCityFilter] = useState('');
   const [allocatedToId, setAllocatedToId] = useState('');
   const [duplicateResults, setDuplicateResults] = useState(null);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
@@ -50,7 +69,7 @@ const AddSts = () => {
   };
 
   // Employee found a duplicate and wants it instead of creating a fresh one — sends a
-  // request to Admin's "Employee STS Request" queue rather than allocating it directly.
+  // request to Admin's "STS Request" queue rather than allocating it directly.
   const handleRequestAllocation = async (id) => {
     setRequestingId(id);
     try {
@@ -63,7 +82,7 @@ const AddSts = () => {
       setRequestingId(null);
     }
   };
-  const { register, handleSubmit, formState: { errors }, watch } = useForm({
+  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm({
     defaultValues: {
       country: 'India',
       priority: 'Highest',
@@ -156,8 +175,12 @@ const AddSts = () => {
                            e.email?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = selectedRoleFilter ? e.employeeRole === selectedRoleFilter : true;
     const matchesDept = selectedDeptFilter ? e.employeeDept === selectedDeptFilter : true;
-    return matchesSearch && matchesRole && matchesDept;
+    const matchesCity = selectedCityFilter.trim() ? (e.cityBranch || '').toLowerCase().includes(selectedCityFilter.trim().toLowerCase()) : true;
+    return matchesSearch && matchesRole && matchesDept && matchesCity;
   });
+
+  // City filter options come from the cities/branches the employees actually belong to.
+  const cityOptions = [...new Set(employees.map(e => (e.cityBranch || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-12">
@@ -336,7 +359,7 @@ const AddSts = () => {
         )}
 
         {!isFormUnlocked && (
-          <div className="rounded-xl border border-dashed border-gray-300 dark:border-slate-700 p-8 text-center text-sm text-gray-500 dark:text-slate-400">
+          <div className="rounded-xl border border-dashed border-gray-300 dark:border-slate-700 p-5 sm:p-8 text-center text-sm text-gray-500 dark:text-slate-400">
             Enter the STS name above and click <span className="font-semibold">Check Duplicate</span> to continue.
           </div>
         )}
@@ -344,121 +367,100 @@ const AddSts = () => {
         {isFormUnlocked && (
         <>
         {/* General Information Section */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-          <div className="bg-blue-500 px-6 py-3 border-b border-blue-600 flex items-center justify-center">
-            <h3 className="text-sm font-bold text-white tracking-wider">General Information</h3>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">General Information</h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Contact, address and location of the STS</p>
+            </div>
           </div>
-          
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5 bg-gray-50/30 dark:bg-slate-800/30">
-            
-            {/* Left Column */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Contact Person <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
-                  <input type="text" {...register('contactPerson', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+
+          <div className="p-6 space-y-8">
+            {/* Contact details */}
+            <div>
+              <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-4">
+                <User className="w-4 h-4" /> Contact Details
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div>
+                  <label className={F_LABEL}>Contact Person <span className="text-red-500">*</span></label>
+                  <input type="text" placeholder="Full name" {...register('contactPerson', { required: true })} className={F_INPUT} />
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Address-1 <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
-                  <input type="text" {...register('address1', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+                <div>
+                  <label className={F_LABEL}>Designation <span className="text-red-500">*</span></label>
+                  <input type="text" placeholder="e.g. Manager" {...register('designation', { required: true })} className={F_INPUT} />
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Address-2</label>
-                <div className="w-2/3">
-                  <input type="text" {...register('address2')} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+                <div>
+                  <label className={F_LABEL}>Email <span className="text-red-500">*</span></label>
+                  <input type="email" placeholder="name@company.com" {...register('email', { required: true })} className={F_INPUT} />
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Phone</label>
-                <div className="w-2/3">
-                  <input type="text" {...register('phoneNumber')} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+                <div>
+                  <label className={F_LABEL}>Mobile-1 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="10-digit number"
+                    onBeforeInput={blockNonDigits}
+                    {...register('mobile1', { required: 'Mobile-1 is required', ...digitsRule(10, 'Mobile-1') })}
+                    className={F_INPUT}
+                  />
+                  {errors.mobile1 && <p className="mt-1 text-xs text-red-600">{errors.mobile1.message}</p>}
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Mobile-2</label>
-                <div className="w-2/3">
-                  <input type="text" {...register('mobile2')} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+                <div>
+                  <label className={F_LABEL}>Mobile-2</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="Optional"
+                    onBeforeInput={blockNonDigits}
+                    {...register('mobile2', digitsRule(10, 'Mobile-2'))}
+                    className={F_INPUT}
+                  />
+                  {errors.mobile2 && <p className="mt-1 text-xs text-red-600">{errors.mobile2.message}</p>}
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Website</label>
-                <div className="w-2/3">
-                  <input type="text" {...register('website')} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">State <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
-                  <select {...register('state', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm">
-                    <option value="">--Select State--</option>
-                    <option value="Uttar Pradesh">Uttar Pradesh</option>
-                    <option value="Delhi">Delhi</option>
-                    <option value="Maharashtra">Maharashtra</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Country <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
-                  <input type="text" {...register('country', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" readOnly />
+                <div className="md:col-span-2 lg:col-span-3">
+                  <label className={F_LABEL}>Website</label>
+                  <input type="text" placeholder="https://" {...register('website')} className={F_INPUT} />
                 </div>
               </div>
             </div>
 
-            {/* Right Column */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Designation <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
-                  <input type="text" {...register('designation', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
+            {/* Address & location */}
+            <div>
+              <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-4">
+                <MapPin className="w-4 h-4" /> Address &amp; Location
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className={F_LABEL}>Address-1 <span className="text-red-500">*</span></label>
+                    <input type="text" placeholder="Building, street" {...register('address1', { required: true })} className={F_INPUT} />
+                  </div>
+                  <div>
+                    <label className={F_LABEL}>Address-2</label>
+                    <input type="text" placeholder="Area, landmark (optional)" {...register('address2')} className={F_INPUT} />
+                  </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center gap-4 mt-12">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Mobile-1 <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
-                  <input type="text" {...register('mobile1', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Fax</label>
-                <div className="w-2/3">
-                  <input type="text" {...register('fax')} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Email <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
-                  <input type="email" {...register('email', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">City <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
+                <LocationFields register={register} watch={watch} setValue={setValue} errors={errors} />
+                <div>
+                  <label className={F_LABEL}>Zip Code <span className="text-red-500">*</span></label>
                   <input
                     type="text"
-                    list="city-options"
-                    {...register('cityDistrict', { required: true })}
-                    placeholder="Select or type a city"
-                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6-digit code"
+                    onBeforeInput={blockNonDigits}
+                    {...register('pincode', { required: 'Zip code is required', ...digitsRule(6, 'Zip code') })}
+                    className={F_INPUT}
                   />
-                  <datalist id="city-options">
-                    <option value="Gorakhpur" />
-                    <option value="Lucknow" />
-                    <option value="New Delhi" />
-                  </datalist>
+                  {errors.pincode && <p className="mt-1 text-xs text-red-600">{errors.pincode.message}</p>}
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <label className="w-1/3 text-sm font-medium text-gray-700 dark:text-slate-300 text-right">Zip Code <span className="text-red-500">*</span></label>
-                <div className="w-2/3">
-                  <input type="text" {...register('pincode', { required: true })} className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm" />
-                </div>
-              </div>
-
             </div>
           </div>
         </div>
@@ -486,7 +488,7 @@ const AddSts = () => {
             )}
             {canAllocate && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Filter by Role</label>
                     <select
@@ -506,6 +508,20 @@ const AddSts = () => {
                       <option value="">All Departments</option>
                       {departments.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Filter by City</label>
+                    {/* Type any city — existing employee cities are only suggestions. */}
+                    <input
+                      type="text"
+                      list="handoff-city-options"
+                      value={selectedCityFilter} onChange={e => setSelectedCityFilter(e.target.value)}
+                      placeholder="Type or pick a city"
+                      className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-slate-900 text-sm placeholder-gray-400"
+                    />
+                    <datalist id="handoff-city-options">
+                      {getCitySuggestions(cityOptions).map(c => <option key={c} value={c} />)}
+                    </datalist>
                   </div>
                 </div>
 
@@ -546,8 +562,8 @@ const AddSts = () => {
               </>
             )}
 
-            <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
-              <table className="w-full text-left text-sm text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-900">
+            <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-900">
                 <thead className="bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200">
                   <tr>
                     <th className="px-4 py-2 border-r border-gray-200 dark:border-slate-700 font-medium">Lead By</th>
@@ -598,10 +614,10 @@ const AddSts = () => {
 
         {/* Actions */}
         <div className="flex justify-center gap-4 pt-4">
-          <Button type="submit" isLoading={isLoading} className="px-12 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium shadow-md">
+          <Button type="submit" isLoading={isLoading} className="px-6 sm:px-12 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium shadow-md">
             Submit
           </Button>
-          <Button type="button" variant="secondary" onClick={() => navigate('/admin/sts')} className="px-12 py-2.5 rounded font-medium shadow-sm">
+          <Button type="button" variant="secondary" onClick={() => navigate('/admin/sts')} className="px-6 sm:px-12 py-2.5 rounded font-medium shadow-sm">
             Reset
           </Button>
         </div>

@@ -1,0 +1,9 @@
+.vs/
+**/.vs/
+**/bin/
+**/obj/
+# Production settings hold the live DB password - deploy by hand, never commit
+**/appsettings.Production.json
+
+# Enquiry form SMTP credentials - deploy by hand, never commit
+**/mail/config.php
